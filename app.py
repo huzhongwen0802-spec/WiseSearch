@@ -231,7 +231,7 @@ st.markdown(
         .app-brand {
             width: 100%;
             color: #1d4ed8;
-            font-size: 40px;
+            font-size: 42px;
             font-weight: 800;
             letter-spacing: 0;
             line-height: 1.2;
