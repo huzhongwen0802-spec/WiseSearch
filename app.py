@@ -83,8 +83,17 @@ DEFAULT_SUB_DOMAINS = [
     "产业转化",
 ]
 
+DEMO_MODE = os.environ.get("EXPERTSEARCH_DEMO_MODE", "").strip().lower() in {
+    "1", "true", "yes", "on",
+}
+DEMO_TOTAL_EXPERTS = max(
+    1, int(os.environ.get("EXPERTSEARCH_DEMO_TOTAL_EXPERTS", "10"))
+)
 EXPERTS_PER_SUBDOMAIN = max(
-    1, int(os.environ.get("SUBDOMAIN_TARGET_EXPERTS", "15"))
+    1,
+    DEMO_TOTAL_EXPERTS
+    if DEMO_MODE
+    else int(os.environ.get("SUBDOMAIN_TARGET_EXPERTS", "15")),
 )
 
 
@@ -276,6 +285,11 @@ st.markdown(
     unsafe_allow_html=True,
 )
 st.divider()
+if DEMO_MODE:
+    st.info(
+        f"现场演示模式：本次仅运行 1 个细分领域，最终最多输出 "
+        f"{DEMO_TOTAL_EXPERTS} 位专家。"
+    )
 
 # 3. 矩阵式批量检索输入区
 main_domain = st.text_input("📚 主要大领域", placeholder="例如：计算机科学、临床医学、物理学")
@@ -359,7 +373,13 @@ submit_button = st.button("🚀 启动全网深度批量检索", use_container_w
 # 4. 点击按钮后的核心逻辑
 if submit_button:
     # 将用户勾选的预设 + 填写的自定义合并为一个总的任务清单
-    final_sub_domains = selected_presets + custom_inputs
+    final_sub_domains = list(dict.fromkeys(selected_presets + custom_inputs))
+    if DEMO_MODE and len(final_sub_domains) > 1:
+        selected_demo_subdomain = final_sub_domains[0]
+        final_sub_domains = [selected_demo_subdomain]
+        st.info(
+            f"现场演示版仅运行一个细分领域，本次将检索：{selected_demo_subdomain}"
+        )
     
     if not main_domain:
         st.warning("⚠️ 请先填写主要大领域！")
