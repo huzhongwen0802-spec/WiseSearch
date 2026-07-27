@@ -204,7 +204,10 @@ def select_balanced_top_experts(
     )
 
 # 1. 页面基本设置
-st.set_page_config(page_title="全球顶尖专家检索引擎", page_icon="🌐", layout="centered")
+page_title = "全球人才信息检索系统" if DEMO_MODE else "全球顶尖专家检索引擎"
+display_title = page_title
+brand_html = '<div class="app-brand">WiseSearch</div>' if DEMO_MODE else ""
+st.set_page_config(page_title=page_title, page_icon="🌐", layout="centered")
 
 # 2. 页面标题与说明
 st.markdown(
@@ -221,6 +224,15 @@ st.markdown(
             align-items: center;
             gap: 14px;
             margin-bottom: 14px;
+        }
+
+        .app-brand {
+            color: #2563eb;
+            font-size: 18px;
+            font-weight: 700;
+            letter-spacing: 0;
+            line-height: 1.2;
+            margin: 0 0 8px 56px;
         }
 
         .app-title .title-icon {
@@ -273,15 +285,19 @@ st.markdown(
         }
     </style>
 
+    __BRAND__
     <div class="app-title">
         <div class="title-icon">🌐</div>
-        <div class="title-text">全球顶尖专家检索引擎</div>
+        <div class="title-text">__TITLE__</div>
     </div>
     <p class="app-subtitle">
         请输入您想探索的学科领域，系统将驱动多智能体深入全网，为您挖掘并交叉验证
         每个细分领域 <strong>__TARGET__ 位</strong> 顶尖专家的核心学术履历。
     </p>
-    """.replace("__TARGET__", str(EXPERTS_PER_SUBDOMAIN)),
+    """
+    .replace("__BRAND__", brand_html)
+    .replace("__TITLE__", display_title)
+    .replace("__TARGET__", str(EXPERTS_PER_SUBDOMAIN)),
     unsafe_allow_html=True,
 )
 st.divider()
