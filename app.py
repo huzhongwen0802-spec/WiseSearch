@@ -195,7 +195,7 @@ def select_balanced_top_experts(
     )
 
 # 1. 页面基本设置
-st.set_page_config(page_title="全球顶尖专家检索引擎", page_icon="🌐", layout="centered")
+st.set_page_config(page_title="全球人才信息检索系统", page_icon="🌐", layout="centered")
 
 # 2. 页面标题与说明
 st.markdown(
@@ -210,8 +210,20 @@ st.markdown(
         .app-title {
             display: flex;
             align-items: center;
+            justify-content: center;
             gap: 14px;
             margin-bottom: 14px;
+        }
+
+        .app-brand {
+            width: 100%;
+            color: #1d4ed8;
+            font-size: 42px;
+            font-weight: 800;
+            letter-spacing: 0;
+            line-height: 1.2;
+            text-align: center;
+            margin: 0 0 12px 0;
         }
 
         .app-title .title-icon {
@@ -221,7 +233,7 @@ st.markdown(
 
         .app-title .title-text {
             color: #1f2937;
-            font-size: 44px;
+            font-size: 30px;
             font-weight: 800;
             letter-spacing: 0;
             line-height: 1.15;
@@ -264,9 +276,10 @@ st.markdown(
         }
     </style>
 
+    <div class="app-brand">Wise Search</div>
     <div class="app-title">
         <div class="title-icon">🌐</div>
-        <div class="title-text">全球顶尖专家检索引擎</div>
+        <div class="title-text">全球人才信息检索系统</div>
     </div>
     <p class="app-subtitle">
         请输入您想探索的学科领域，系统将驱动多智能体深入全网，为您挖掘并交叉验证
