@@ -1233,13 +1233,28 @@ def add_ranking_metrics(df: pd.DataFrame, query: str = "", include_chinese_exper
     df = df.drop(columns=[column for column in GENERATED_METRIC_COLUMNS if column in df.columns], errors="ignore")
     df = clean_contact_fields(df)
     df = filter_obvious_domain_mismatches(df, query)
-    df = enrich_openalex_metrics(df, query)
-    df = enrich_semantic_scholar_metrics(df, query)
-    df = enrich_expert_details(df, query)
-    df = normalize_homepage_access_status(df)
-    df = clean_contact_fields(df)
-    df = verify_survival_status(df, query)
-    df = filter_deceased_experts(df)
+    fast_demo_mode = os.environ.get(
+        "EXPERTSEARCH_DEMO_FAST_MODE", ""
+    ).strip().lower() in {"1", "true", "yes", "on"}
+    if fast_demo_mode:
+        safe_print(
+            "[演示快速链路] 跳过逐人 OpenAlex/Semantic Scholar、主页/OpenCLI、"
+            "Tavily 补全和生存状态联网核验；使用研究员已有证据完成 Python 清洗与评分。"
+        )
+        for column in ["i10指数", "总被引次数"]:
+            if column not in df.columns:
+                df[column] = "暂无公开信息"
+        df = normalize_homepage_access_status(df)
+        df = clean_contact_fields(df)
+        df = filter_deceased_experts(df)
+    else:
+        df = enrich_openalex_metrics(df, query)
+        df = enrich_semantic_scholar_metrics(df, query)
+        df = enrich_expert_details(df, query)
+        df = normalize_homepage_access_status(df)
+        df = clean_contact_fields(df)
+        df = verify_survival_status(df, query)
+        df = filter_deceased_experts(df)
     if not include_chinese_experts:
         df = filter_foreign_experts(df)
 
@@ -1402,6 +1417,15 @@ def selectively_enrich_final_experts(df: pd.DataFrame, query: str = "") -> pd.Da
         return df
 
     work_df = df.copy()
+    if os.environ.get("EXPERTSEARCH_DEMO_FAST_MODE", "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }:
+        safe_print(
+            "[最终定向补全] 快速演示模式跳过最终全量深挖，"
+            "保留批次阶段已获得的 OpenAlex、网页和主页信息。"
+        )
+        return work_df
+
     before_missing = {
         column: int(work_df.apply(lambda row: column in _final_missing_fields(row), axis=1).sum())
         for column in FINAL_ENRICHMENT_FIELDS
@@ -1492,7 +1516,14 @@ def finalize_merged_experts(
     work_df = drop_near_duplicate_experts(work_df)
     work_df = selectively_enrich_final_experts(work_df, query)
     work_df = normalize_homepage_access_status(work_df)
-    work_df = verify_survival_status(work_df, query, exhaustive=True)
+    fast_demo_mode = os.environ.get(
+        "EXPERTSEARCH_DEMO_FAST_MODE", ""
+    ).strip().lower() in {"1", "true", "yes", "on"}
+    work_df = verify_survival_status(
+        work_df,
+        query,
+        exhaustive=not fast_demo_mode,
+    )
     work_df = filter_deceased_experts(work_df)
     work_df = work_df.drop(columns=["专家姓名验证", "姓名验证依据"], errors="ignore")
     work_df = add_name_verification_columns(work_df)

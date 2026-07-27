@@ -173,17 +173,19 @@ api_key = os.environ.get("API_KEY", "")
 api_base = os.environ.get("API_BASE_URL", "")
 
 llm = ChatOpenAI(
-    model="gpt-5.5",
+    model=os.environ.get("LLM_MODEL", "gpt-5.5"),
     temperature=0.1,
     api_key=api_key,
     base_url=api_base,
-    streaming=False
+    streaming=False,
+    timeout=float(os.environ.get("LLM_TIMEOUT_SECONDS", "180")),
+    max_retries=max(0, int(os.environ.get("LLM_CLIENT_MAX_RETRIES", "0"))),
 )
 
 # 初始化搜索工具
 search_tool = TavilySearch(
     max_results=int(os.environ.get("TAVILY_MAX_RESULTS", "4")),
-    search_depth="advanced",
+    search_depth=os.environ.get("TAVILY_SEARCH_DEPTH", "advanced"),
     topic="general",
     include_answer=False,
     handle_tool_error=True,
@@ -206,6 +208,12 @@ def _budget_context(text: str, limit: int) -> str:
     if limit <= len(marker):
         return clean[:limit]
     return clean[:limit - len(marker)].rstrip() + marker
+
+
+def _fast_demo_mode() -> bool:
+    return os.environ.get("EXPERTSEARCH_DEMO_FAST_MODE", "").strip().lower() in {
+        "1", "true", "yes", "on",
+    }
 
 
 def budget_researcher_evidence(
@@ -417,10 +425,22 @@ def invoke_llm_with_stage(stage: str, messages: list):
     retry_delay = float(os.environ.get("LLM_RETRY_DELAY_SECONDS", "3"))
     last_error = None
     for attempt in range(1, max_attempts + 1):
+        attempt_started = time.monotonic()
+        safe_print(
+            f"[{stage}] LLM 调用开始，模型={os.environ.get('LLM_MODEL', 'gpt-5.5')}，"
+            f"尝试={attempt}/{max_attempts}。"
+        )
         try:
-            return llm.invoke(messages)
+            result = llm.invoke(messages)
+            safe_print(
+                f"[{stage}] LLM 调用完成，耗时={time.monotonic() - attempt_started:.1f} 秒。"
+            )
+            return result
         except Exception as e:
             last_error = e
+            safe_print(
+                f"[{stage}] LLM 调用失败，耗时={time.monotonic() - attempt_started:.1f} 秒。"
+            )
             if is_sensitive_word_error(e):
                 raise RuntimeError(f"{stage}：LLM 请求被中转服务敏感词规则拦截: {e}") from e
             if _is_connection_like_error(e) and attempt < max_attempts:
@@ -489,6 +509,17 @@ def document_processor_node(state: AgentState):
         return {
             "compressed_supplemental_document_context": "",
             "document_compression_status": "未筛选到可用文档证据",
+        }
+
+    if _fast_demo_mode():
+        fallback = _budget_context(compact_context, output_limit)
+        safe_print(
+            f"[文档压缩节点] 快速演示模式使用 Python 规则压缩 ({len(fallback)} 字符)，"
+            "跳过额外 LLM 调用。"
+        )
+        return {
+            "compressed_supplemental_document_context": fallback,
+            "document_compression_status": "快速演示模式：Python 规则压缩",
         }
 
     cache_key = (focus_query, compact_context)
@@ -676,11 +707,19 @@ def researcher_node(state: AgentState):
     )
     scope_policy = expert_scope_policy(include_chinese_experts)
 
+    source_started = time.monotonic()
     openalex_context = build_openalex_context(query)
+    safe_print(
+        f"[研究员节点耗时] OpenAlex 候选证据={time.monotonic() - source_started:.1f} 秒。"
+    )
     semantic_scholar_context = ""
     if os.environ.get("ENABLE_SEMANTIC_SCHOLAR_CONTEXT", "false").lower() in {"1", "true", "yes"}:
         semantic_scholar_context = "\n\n" + build_semantic_scholar_context(query)
+    source_started = time.monotonic()
     search_context = tavily_search_context(query, include_chinese_experts)
+    safe_print(
+        f"[研究员节点耗时] Tavily 候选证据={time.monotonic() - source_started:.1f} 秒。"
+    )
     supplemental_context = supplemental_data_source_context(extra_data_source_urls, query)
     document_context = ""
     if compressed_document_context:
@@ -859,6 +898,18 @@ def validator_node(state: AgentState):
     负责对第一个智能体查询到的数据进行验证并标注错误信息
     """
     research_data = require_state_value(state, "research_data")
+    if _fast_demo_mode():
+        rows = parse_expert_markdown_table(research_data)
+        safe_print(
+            f"[验证节点分流] 快速演示模式由 Python 清洗链路验证 {len(rows)} 位专家，"
+            "跳过验证与纠错 LLM。"
+        )
+        return {
+            "validation_feedback": (
+                "PYTHON_VALIDATION_PASSED：快速演示模式跳过额外 LLM，"
+                "后续继续执行领域错配、身份、去重和生存状态规则清洗。"
+            )
+        }
     scope_policy = expert_scope_policy(bool(state.get("include_chinese_experts", False)))
     rows = parse_expert_markdown_table(research_data)
     if not rows:
