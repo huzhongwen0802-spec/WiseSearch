@@ -204,7 +204,7 @@ def select_balanced_top_experts(
     )
 
 # 1. 页面基本设置
-page_title = "全球人才检索系统" if DEMO_MODE else "全球顶尖专家检索引擎"
+page_title = "全球人才信息检索系统" if DEMO_MODE else "全球顶尖专家检索引擎"
 display_title = page_title
 brand_html = '<div class="app-brand">Wise Search</div>' if DEMO_MODE else ""
 title_container_class = "app-title demo-app-title" if DEMO_MODE else "app-title"
