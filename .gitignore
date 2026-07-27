@@ -1,0 +1,36 @@
+# Secrets and local configuration
+.env
+.env.*
+!.env.example
+
+# Python
+.venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+
+# Runtime logs and temporary files
+*.log
+*.tmp
+*.temp
+tmp_quality_chart/
+outputs/
+
+# Generated expert workbooks
+Expert_Results/
+*.xlsx
+~$*.xlsx
+
+# OpenCLI local browser profiles and downloaded bundles
+tools/opencli/chrome-profile/
+tools/opencli/edge-profile/
+tools/opencli/edge-headless-profile/
+tools/opencli/edge-headless-test/
+tools/opencli/runtime/node_modules/
+tools/opencli/*.zip
+
+# Editors and operating system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db

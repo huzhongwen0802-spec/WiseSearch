@@ -1,0 +1,16 @@
+langchain
+langgraph
+streamlit
+langchain-google-genai
+langchain-openai
+langchain-community
+langchain-tavily
+duckduckgo-search
+ddgs
+pandas
+openpyxl
+markdown
+python-dotenv
+requests
+pypdf
+python-docx

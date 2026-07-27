@@ -1,0 +1,169 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1800" height="2700" viewBox="0 0 1800 2700">
+  <defs>
+    <style>
+      .title { font: 700 46px 'Microsoft YaHei', 'Noto Sans CJK SC', Arial, sans-serif; fill: #172033; }
+      .subtitle { font: 400 21px 'Microsoft YaHei', 'Noto Sans CJK SC', Arial, sans-serif; fill: #526079; }
+      .section { font: 700 24px 'Microsoft YaHei', 'Noto Sans CJK SC', Arial, sans-serif; fill: #334155; }
+      .node-title { font: 700 23px 'Microsoft YaHei', 'Noto Sans CJK SC', Arial, sans-serif; fill: #152238; }
+      .node-text { font: 400 18px 'Microsoft YaHei', 'Noto Sans CJK SC', Arial, sans-serif; fill: #42526b; }
+      .small { font: 400 16px 'Microsoft YaHei', 'Noto Sans CJK SC', Arial, sans-serif; fill: #5b667b; }
+      .state { font: 600 16px Consolas, 'Microsoft YaHei', sans-serif; fill: #2463a7; }
+      .white-title { font: 700 23px 'Microsoft YaHei', 'Noto Sans CJK SC', Arial, sans-serif; fill: #ffffff; }
+      .white-text { font: 400 17px 'Microsoft YaHei', 'Noto Sans CJK SC', Arial, sans-serif; fill: #eaf3ff; }
+      .box { stroke-width: 2; rx: 16; }
+      .arrow { fill: none; stroke: #64748b; stroke-width: 3; marker-end: url(#arrow); }
+      .arrow-blue { fill: none; stroke: #3b82f6; stroke-width: 3; marker-end: url(#arrowBlue); }
+      .arrow-dash { fill: none; stroke: #d97706; stroke-width: 3; stroke-dasharray: 10 8; marker-end: url(#arrowAmber); }
+    </style>
+    <marker id="arrow" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#64748b"/></marker>
+    <marker id="arrowBlue" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#3b82f6"/></marker>
+    <marker id="arrowAmber" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="9" markerHeight="9" orient="auto-start-reverse"><path d="M 0 0 L 10 5 L 0 10 z" fill="#d97706"/></marker>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="130%"><feDropShadow dx="0" dy="5" stdDeviation="6" flood-color="#1e293b" flood-opacity="0.12"/></filter>
+    <linearGradient id="header" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#2563eb"/><stop offset="1" stop-color="#0f766e"/></linearGradient>
+  </defs>
+
+  <rect width="1800" height="2700" fill="#f7f9fc"/>
+  <rect x="0" y="0" width="1800" height="150" fill="url(#header)"/>
+  <text x="90" y="72" class="white-title" style="font-size:42px">ExpertSearch 全球专家检索系统流程图</text>
+  <text x="90" y="112" class="white-text">Streamlit + LangGraph · Python 取证 · LLM 整理验证 · 多源补全 · Excel 交付</text>
+
+  <!-- Input -->
+  <text x="90" y="205" class="section">01  用户输入与任务拆分</text>
+  <rect x="90" y="235" width="360" height="150" class="box" fill="#e8f1ff" stroke="#6aa4f8" filter="url(#shadow)"/>
+  <text x="270" y="280" text-anchor="middle" class="node-title">Streamlit 前端</text>
+  <text x="270" y="316" text-anchor="middle" class="node-text">输入主要大领域</text>
+  <text x="270" y="346" text-anchor="middle" class="node-text">选择或自定义细分领域</text>
+
+  <rect x="550" y="235" width="430" height="150" class="box" fill="#eef2ff" stroke="#818cf8" filter="url(#shadow)"/>
+  <text x="765" y="280" text-anchor="middle" class="node-title">检索范围与补充材料</text>
+  <text x="765" y="316" text-anchor="middle" class="node-text">国内专家开关 · 补充网页 URL</text>
+  <text x="765" y="346" text-anchor="middle" class="node-text">上传 PDF / Word 文件</text>
+
+  <rect x="1080" y="235" width="630" height="150" class="box" fill="#ecfdf5" stroke="#34d399" filter="url(#shadow)"/>
+  <text x="1395" y="280" text-anchor="middle" class="node-title">逐个细分领域建立任务</text>
+  <text x="1395" y="316" text-anchor="middle" class="node-text">每个细分领域最多 15 位专家</text>
+  <text x="1395" y="346" text-anchor="middle" class="node-text">维护独立排除名单，防止同领域重复</text>
+  <path d="M450 310 H550" class="arrow"/>
+  <path d="M980 310 H1080" class="arrow"/>
+
+  <!-- LangGraph -->
+  <text x="90" y="470" class="section">02  单个细分领域的 LangGraph 状态流转</text>
+  <rect x="70" y="500" width="1660" height="900" rx="24" fill="#ffffff" stroke="#d5deea" stroke-width="2"/>
+  <rect x="105" y="535" width="1590" height="58" rx="14" fill="#eff6ff"/>
+  <text x="900" y="573" text-anchor="middle" class="state">AgentState：query → compressed_document_context → research_data → validation_feedback → final_data → excel_path</text>
+
+  <rect x="585" y="635" width="630" height="120" class="box" fill="#e0f2fe" stroke="#38bdf8" filter="url(#shadow)"/>
+  <text x="900" y="680" text-anchor="middle" class="node-title">document_processor_node</text>
+  <text x="900" y="718" text-anchor="middle" class="node-text">文档压缩智能体：提取高密度候选人与证据</text>
+
+  <rect x="585" y="825" width="630" height="145" class="box" fill="#dff7f3" stroke="#2cb7a0" filter="url(#shadow)"/>
+  <text x="900" y="870" text-anchor="middle" class="node-title">researcher_node</text>
+  <text x="900" y="906" text-anchor="middle" class="node-text">Python 汇总外部证据，LLM 分批整理专家表</text>
+  <text x="900" y="936" text-anchor="middle" class="small">目标人数由前端传入；15 位通常按 10 + 5 整理</text>
+
+  <rect x="130" y="745" width="340" height="365" class="box" fill="#fff7e6" stroke="#f4b942"/>
+  <text x="300" y="790" text-anchor="middle" class="node-title">Python 外部取证</text>
+  <text x="170" y="836" class="node-text">OpenAlex</text><text x="170" y="864" class="small">作者、作品、指标、主题</text>
+  <text x="170" y="910" class="node-text">Tavily</text><text x="170" y="938" class="small">网页、主页、奖项、合作</text>
+  <text x="170" y="984" class="node-text">Semantic Scholar</text><text x="170" y="1012" class="small">按需交叉验证</text>
+  <text x="170" y="1058" class="node-text">用户补充网页与压缩文件</text>
+  <path d="M470 900 H585" class="arrow-dash"/>
+
+  <rect x="585" y="1040" width="630" height="110" class="box" fill="#f0eaff" stroke="#9b7bea" filter="url(#shadow)"/>
+  <text x="900" y="1083" text-anchor="middle" class="node-title">validator_node</text>
+  <text x="900" y="1118" text-anchor="middle" class="node-text">验证身份、领域关联、成果、来源与数据异常</text>
+
+  <rect x="585" y="1215" width="630" height="110" class="box" fill="#f4e8ff" stroke="#a855f7" filter="url(#shadow)"/>
+  <text x="900" y="1258" text-anchor="middle" class="node-title">corrector_node</text>
+  <text x="900" y="1293" text-anchor="middle" class="node-text">结合原始数据与验证反馈生成最终 Markdown 表</text>
+
+  <rect x="1320" y="1040" width="320" height="285" class="box" fill="#f0f9ff" stroke="#60a5fa"/>
+  <text x="1480" y="1085" text-anchor="middle" class="node-title">excel_converter_node</text>
+  <text x="1480" y="1122" text-anchor="middle" class="node-text">解析 final_data</text>
+  <text x="1480" y="1152" text-anchor="middle" class="node-text">批次增强与评分</text>
+  <text x="1480" y="1182" text-anchor="middle" class="node-text">写入临时 Excel</text>
+  <rect x="1370" y="1230" width="220" height="55" rx="12" fill="#dbeafe" stroke="#60a5fa"/>
+  <text x="1480" y="1265" text-anchor="middle" class="state">excel_path</text>
+
+  <path d="M900 755 V825" class="arrow-blue"/>
+  <text x="920" y="795" class="state">压缩证据</text>
+  <path d="M900 970 V1040" class="arrow-blue"/>
+  <text x="920" y="1010" class="state">research_data</text>
+  <path d="M900 1150 V1215" class="arrow-blue"/>
+  <text x="920" y="1188" class="state">validation_feedback</text>
+  <path d="M1215 1270 H1320" class="arrow-blue"/>
+  <text x="1235" y="1252" class="state">final_data</text>
+  <path d="M730 970 C520 1030 510 1210 585 1260" class="arrow"/>
+  <text x="420" y="1165" class="small">原始 research_data 同时交给纠错节点</text>
+
+  <!-- Topup -->
+  <text x="90" y="1475" class="section">03  人数检查与跨细分领域汇总</text>
+  <rect x="90" y="1510" width="420" height="135" class="box" fill="#e8f1ff" stroke="#6aa4f8" filter="url(#shadow)"/>
+  <text x="300" y="1556" text-anchor="middle" class="node-title">检查本细分领域人数</text>
+  <text x="300" y="1594" text-anchor="middle" class="node-text">达到 15 位或完成补位尝试？</text>
+  <rect x="640" y="1510" width="420" height="135" class="box" fill="#fff7e6" stroke="#f4b942" filter="url(#shadow)"/>
+  <text x="850" y="1556" text-anchor="middle" class="node-title">不足时自动补位</text>
+  <text x="850" y="1594" text-anchor="middle" class="node-text">携带已发现专家排除名单重跑任务</text>
+  <rect x="1190" y="1510" width="520" height="135" class="box" fill="#ecfdf5" stroke="#34d399" filter="url(#shadow)"/>
+  <text x="1450" y="1556" text-anchor="middle" class="node-title">合并全部细分领域批次</text>
+  <text x="1450" y="1594" text-anchor="middle" class="node-text">允许同一专家保留多个真实细分领域归属</text>
+  <path d="M510 1577 H640" class="arrow"/>
+  <text x="548" y="1557" class="small">不足</text>
+  <path d="M1060 1577 H1190" class="arrow"/>
+  <text x="1095" y="1557" class="small">完成</text>
+
+  <!-- Cleaning and enrichment -->
+  <text x="90" y="1735" class="section">04  最终清洗、补全与质量控制</text>
+  <rect x="90" y="1770" width="1620" height="180" rx="20" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <rect x="125" y="1810" width="330" height="100" class="box" fill="#ecfdf5" stroke="#34d399"/>
+  <text x="290" y="1850" text-anchor="middle" class="node-title">字段合并与去重</text>
+  <text x="290" y="1882" text-anchor="middle" class="small">近似姓名合并互补信息</text>
+  <rect x="540" y="1810" width="350" height="100" class="box" fill="#fff1f2" stroke="#fb7185"/>
+  <text x="715" y="1850" text-anchor="middle" class="node-title">明显领域错配清洗</text>
+  <text x="715" y="1882" text-anchor="middle" class="small">剔除与目标领域强冲突专家</text>
+  <rect x="975" y="1810" width="300" height="100" class="box" fill="#f0fdf4" stroke="#4ade80"/>
+  <text x="1125" y="1850" text-anchor="middle" class="node-title">生存状态核验</text>
+  <text x="1125" y="1882" text-anchor="middle" class="small">确认已故者直接剔除</text>
+  <rect x="1360" y="1810" width="315" height="100" class="box" fill="#f5f3ff" stroke="#a78bfa"/>
+  <text x="1517" y="1850" text-anchor="middle" class="node-title">身份与来源核验</text>
+  <text x="1517" y="1882" text-anchor="middle" class="small">标记已验证或待复核</text>
+  <path d="M455 1860 H540" class="arrow"/><path d="M890 1860 H975" class="arrow"/><path d="M1275 1860 H1360" class="arrow"/>
+
+  <rect x="90" y="2010" width="1620" height="250" rx="20" fill="#ffffff" stroke="#cbd5e1" stroke-width="2"/>
+  <text x="900" y="2055" text-anchor="middle" class="node-title">关键字段定向补全</text>
+  <text x="900" y="2087" text-anchor="middle" class="small">只补缺失字段；无公开证据时保留“暂无公开信息”，禁止编造</text>
+  <rect x="135" y="2130" width="260" height="80" class="box" fill="#fff7e6" stroke="#f4b942"/>
+  <text x="265" y="2179" text-anchor="middle" class="node-text">OpenAlex 指标</text>
+  <rect x="455" y="2130" width="280" height="80" class="box" fill="#fff7e6" stroke="#f4b942"/>
+  <text x="595" y="2179" text-anchor="middle" class="node-text">Semantic Scholar</text>
+  <rect x="795" y="2130" width="250" height="80" class="box" fill="#e8f1ff" stroke="#6aa4f8"/>
+  <text x="920" y="2179" text-anchor="middle" class="node-text">HTTP 主页访问</text>
+  <rect x="1105" y="2130" width="250" height="80" class="box" fill="#e8f1ff" stroke="#6aa4f8"/>
+  <text x="1230" y="2179" text-anchor="middle" class="node-text">OpenCLI 回退</text>
+  <rect x="1415" y="2130" width="250" height="80" class="box" fill="#fff7e6" stroke="#f4b942"/>
+  <text x="1540" y="2179" text-anchor="middle" class="node-text">Tavily 定向搜索</text>
+  <path d="M1045 2170 H1105" class="arrow-dash"/>
+  <text x="1065" y="2152" class="small">失败</text>
+
+  <!-- Delivery -->
+  <text x="90" y="2345" class="section">05  评分、中文交付与文件输出</text>
+  <rect x="90" y="2380" width="390" height="150" class="box" fill="#f5f3ff" stroke="#a78bfa" filter="url(#shadow)"/>
+  <text x="285" y="2425" text-anchor="middle" class="node-title">综合评分与排序</text>
+  <text x="285" y="2462" text-anchor="middle" class="small">H + log10(引用) × 15</text>
+  <text x="285" y="2492" text-anchor="middle" class="small">+ i10 × 0.2 + 头衔加分</text>
+  <rect x="560" y="2380" width="390" height="150" class="box" fill="#ecfdf5" stroke="#34d399" filter="url(#shadow)"/>
+  <text x="755" y="2425" text-anchor="middle" class="node-title">均衡控制最终容量</text>
+  <text x="755" y="2465" text-anchor="middle" class="node-text">15 × 用户选择的细分领域数</text>
+  <rect x="1030" y="2380" width="340" height="150" class="box" fill="#eef2ff" stroke="#818cf8" filter="url(#shadow)"/>
+  <text x="1200" y="2425" text-anchor="middle" class="node-title">中文交付处理</text>
+  <text x="1200" y="2462" text-anchor="middle" class="small">术语规范化与批量翻译</text>
+  <text x="1200" y="2492" text-anchor="middle" class="small">英文残留检查</text>
+  <rect x="1450" y="2380" width="260" height="150" class="box" fill="#2563eb" stroke="#1d4ed8" filter="url(#shadow)"/>
+  <text x="1580" y="2425" text-anchor="middle" class="white-title">最终 Excel</text>
+  <text x="1580" y="2465" text-anchor="middle" class="white-text">保存并提供下载</text>
+  <text x="1580" y="2495" text-anchor="middle" class="white-text">清理临时批次</text>
+  <path d="M480 2455 H560" class="arrow"/><path d="M950 2455 H1030" class="arrow"/><path d="M1370 2455 H1450" class="arrow-blue"/>
+
+  <rect x="90" y="2590" width="1620" height="70" rx="14" fill="#fff7ed" stroke="#fb923c" stroke-width="2"/>
+  <text x="900" y="2633" text-anchor="middle" class="node-text">失败降级：单个 API、主页或 OpenCLI 调用失败时记录日志并继续主流程；只有整个任务无法生成有效数据时才返回失败。</text>
+</svg>
