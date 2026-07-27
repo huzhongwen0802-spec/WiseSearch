@@ -5,9 +5,9 @@ access fails or the returned page does not contain the expert's name.
 
 ## One-Time Setup
 
-1. Run `start_opencli_browser.cmd`.
+1. Run `scripts\windows\start_opencli_browser.cmd`.
 2. The dedicated Edge profile runs headlessly in the background while ExpertSearch is running.
-3. Run `check_opencli.cmd`. Both Extension and Connectivity must show `[OK]`.
+3. Run `scripts\windows\check_opencli.cmd`. Both Extension and Connectivity must show `[OK]`.
 
 This dedicated profile avoids exposing cookies and sessions from the user's
 normal browser profile. It does not open a visible browser window.

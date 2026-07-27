@@ -11,8 +11,8 @@ from dotenv import load_dotenv
 from langchain_core.messages import HumanMessage, SystemMessage
 from langchain_openai import ChatOpenAI
 
-from llm_safety import sanitize_for_llm
-from safe_logging import safe_print
+from .llm_safety import sanitize_for_llm
+from .safe_logging import safe_print
 
 load_dotenv()
 

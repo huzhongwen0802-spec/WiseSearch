@@ -7,14 +7,14 @@ import math
 import pandas as pd
 from openpyxl.styles import Alignment, Border, Font, PatternFill, Side
 from openpyxl.utils import get_column_letter
-from state import AgentState, require_state_value
-from openalex_client import get_openalex_author_metrics
-from semantic_scholar_client import get_semantic_scholar_author_metrics
-from expert_enrichment import enrich_expert_details
-from safe_logging import safe_print
-from source_registry import source_records_for_query
-from survival_verification import verify_survival_status
-from chinese_output import translate_delivery_dataframe
+from .state import AgentState, require_state_value
+from .openalex_client import get_openalex_author_metrics
+from .semantic_scholar_client import get_semantic_scholar_author_metrics
+from .expert_enrichment import enrich_expert_details
+from .safe_logging import safe_print
+from .source_registry import source_records_for_query
+from .survival_verification import verify_survival_status
+from .chinese_output import translate_delivery_dataframe
 
 EXPERT_TABLE_HEADERS = [
     "专家姓名", "国籍", "个人主页", "邮箱/电话", "研究兴趣",

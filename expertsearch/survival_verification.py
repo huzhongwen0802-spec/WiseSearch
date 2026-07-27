@@ -9,7 +9,7 @@ import pandas as pd
 from dotenv import load_dotenv
 from langchain_tavily import TavilySearch
 
-from safe_logging import safe_print
+from .safe_logging import safe_print
 
 load_dotenv()
 

@@ -42,7 +42,7 @@ OpenCLI 暂时不可用时只记录警告，主系统仍会继续启动并使用
 轻量语法检查：
 
 ```powershell
-.\.venv\Scripts\python.exe -m py_compile app.py agents.py main.py utils.py expert_enrichment.py openalex_client.py semantic_scholar_client.py llm_safety.py state.py
+.\.venv\Scripts\python.exe -m compileall -q app.py main.py expertsearch tests
 ```
 
 ## 环境变量
@@ -122,18 +122,23 @@ Semantic Scholar 默认只作为按需补充，不作为主检索上下文。不
 
 ## 主要文件
 
-- `app.py`：Streamlit 前端；负责领域输入、细分领域选择、批量运行、下载按钮、最终总表合并。
-- `main.py`：LangGraph 入口；暴露 `run_agent_task()` 和 `get_dynamic_recommendations()`。
-- `state.py`：LangGraph 状态定义。关键字段为 `query -> research_data -> validation_feedback -> final_data -> excel_path`。
-- `agents.py`：LLM 节点、Tavily 搜索上下文、细分领域推荐。当前 LLM 使用 OpenAI 兼容接口 `ChatOpenAI(model="gpt-5.5")`。
-- `utils.py`：Markdown 表格解析、Excel 写出、OpenAlex/Semantic Scholar 指标增强、评分、近似去重、字段清洗。
-- `expert_enrichment.py`：专家信息补全层；访问个人主页、补邮箱/研究兴趣/单位/职位/教育/主要成果/合作线索。
-- `openalex_client.py`：OpenAlex 作者、作品、指标接口。
-- `semantic_scholar_client.py`：Semantic Scholar 作者和论文接口，带 1 request/sec 限速。
-- `llm_safety.py`：LLM 中转服务敏感词误杀保护，只改写发送给 LLM 的文本，不改前端显示和文件命名。
-- `survival_verification.py`：独立生存状态核验层；通过网页证据识别讣告、逝世公告等明确死亡证据。
-- `chinese_output.py`：最终甲方交付表中文规范化、批量翻译与英文残留检查。
-- `opencli_homepage_client.py`：OpenCLI 真实浏览器主页访问回退层；限制公网 URL、调用次数和超时。
+- `app.py`：Streamlit 稳定入口；负责领域输入、细分领域选择、批量运行、下载按钮、最终总表合并。
+- `main.py`：兼容入口；转发既有的 `run_agent_task()` 和 `get_dynamic_recommendations()` 导入。
+- `expertsearch/main.py`：LangGraph 核心入口。
+- `expertsearch/state.py`：LangGraph 状态定义。关键字段为 `query -> research_data -> validation_feedback -> final_data -> excel_path`。
+- `expertsearch/agents.py`：LLM 节点、Tavily 搜索上下文、细分领域推荐。当前 LLM 使用 OpenAI 兼容接口 `ChatOpenAI(model="gpt-5.5")`。
+- `expertsearch/utils.py`：Markdown 表格解析、Excel 写出、OpenAlex/Semantic Scholar 指标增强、评分、近似去重、字段清洗。
+- `expertsearch/expert_enrichment.py`：专家信息补全层；访问个人主页、补邮箱/研究兴趣/单位/职位/教育/主要成果/合作线索。
+- `expertsearch/openalex_client.py`：OpenAlex 作者、作品、指标接口。
+- `expertsearch/semantic_scholar_client.py`：Semantic Scholar 作者和论文接口，带 1 request/sec 限速。
+- `expertsearch/llm_safety.py`：LLM 中转服务敏感词误杀保护，只改写发送给 LLM 的文本，不改前端显示和文件命名。
+- `expertsearch/survival_verification.py`：独立生存状态核验层；通过网页证据识别讣告、逝世公告等明确死亡证据。
+- `expertsearch/chinese_output.py`：最终甲方交付表中文规范化、批量翻译与英文残留检查。
+- `expertsearch/opencli_homepage_client.py`：OpenCLI 真实浏览器主页访问回退层；限制公网 URL、调用次数和超时。
+- `tests/`：自动化测试。
+- `docs/`：项目说明、流程图及文档资产。
+- `scripts/windows/`：OpenCLI 等 Windows 辅助命令。
+- `logs/`：当前和历史 Streamlit 日志。
 
 ## 数据流
 
@@ -256,9 +261,9 @@ HTTP失败，OpenCLI未成功
 未尝试
 ```
 
-OpenCLI 使用独立 Chrome 配置。首次使用时运行 `start_opencli_browser.cmd`，
+OpenCLI 使用独立 Chrome 配置。首次使用时运行 `scripts\windows\start_opencli_browser.cmd`，
 在 `chrome://extensions/` 开启开发者模式并加载
-`tools/opencli/extension`，然后运行 `check_opencli.cmd`，确认 Extension 和
+`tools/opencli/extension`，然后运行 `scripts\windows\check_opencli.cmd`，确认 Extension 和
 Connectivity 均显示 `[OK]`。
 
 OpenCLI 命令入口优先使用项目内 `tools/opencli/runtime`，避免依赖用户目录下的全局 npm 安装。缺失时运行：
@@ -298,7 +303,7 @@ Harald P. Pfeiffer
 
 ## LLM 敏感词误杀
 
-部分中转服务会把正常学术词误判为敏感词，例如农业中的“种质资源”。相关保护在 `llm_safety.py`。
+部分中转服务会把正常学术词误判为敏感词，例如农业中的“种质资源”。相关保护在 `expertsearch/llm_safety.py`。
 
 原则：
 
@@ -307,7 +312,7 @@ Harald P. Pfeiffer
 - 不改 Tavily/OpenAlex 检索原始 query。
 - 不改 Excel 文件名。
 
-如果遇到 `local:sensitive_words` 或 `sensitive words detected`，优先在 `llm_safety.py` 添加最小范围的学术术语替换。
+如果遇到 `local:sensitive_words` 或 `sensitive words detected`，优先在 `expertsearch/llm_safety.py` 添加最小范围的学术术语替换。
 
 ## 错误定位
 
@@ -326,7 +331,7 @@ Harald P. Pfeiffer
 
 - `LLM/API 中转服务连接失败或超时`：通常是模型中转服务、网络、并发或 prompt 过大。
 - `Tavily 检索全部失败`：搜索服务连接失败或超时。
-- `local:sensitive_words`：中转服务误杀，需要看 `llm_safety.py`。
+- `local:sensitive_words`：中转服务误杀，需要看 `expertsearch/llm_safety.py`。
 
 ## 前端约定
 
@@ -346,7 +351,7 @@ Harald P. Pfeiffer
 - 不要把 `.venv/`、`__pycache__/`、生成的 Excel 当成源码改动。
 - 手动编辑文件优先使用 `apply_patch`。
 - 新增依赖后同步更新 `requirements.txt`。
-- 每次改完核心 Python 文件，至少运行 `py_compile`。
+- 每次改完核心 Python 文件，至少运行 `.\.venv\Scripts\python.exe -m compileall -q app.py main.py expertsearch tests`。
 - 对会联网的验证要谨慎，当前环境可能限制网络；能用离线小测试先测离线逻辑。
 
 ## 当前建议测试流程

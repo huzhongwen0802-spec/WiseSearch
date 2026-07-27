@@ -10,7 +10,7 @@ from typing import Any
 import requests
 from requests import exceptions as requests_exceptions
 
-from safe_logging import safe_print
+from .safe_logging import safe_print
 
 OPENALEX_BASE_URL = "https://api.openalex.org"
 GREATER_CHINA_COUNTRY_CODES = {"CN", "HK", "MO", "TW"}

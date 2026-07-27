@@ -4,7 +4,7 @@ import unittest
 
 import pandas as pd
 
-from utils import filter_obvious_domain_mismatches
+from expertsearch.utils import filter_obvious_domain_mismatches
 
 
 class DomainRelevanceFilterTests(unittest.TestCase):

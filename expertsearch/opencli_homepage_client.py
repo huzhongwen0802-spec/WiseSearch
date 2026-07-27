@@ -11,7 +11,7 @@ from dataclasses import dataclass
 from pathlib import Path
 from urllib.parse import urlparse
 
-from safe_logging import safe_print
+from .safe_logging import safe_print
 
 
 @dataclass
@@ -44,7 +44,7 @@ def _opencli_entry_path() -> Path:
     if configured:
         return Path(configured)
     project_entry = (
-        Path(__file__).resolve().parent
+        Path(__file__).resolve().parent.parent
         / "tools"
         / "opencli"
         / "runtime"
@@ -147,7 +147,12 @@ def _doctor_result() -> tuple[bool, str]:
 
 
 def _start_browser_bridge() -> tuple[bool, str]:
-    script = Path(__file__).resolve().parent / "start_opencli_browser.cmd"
+    script = (
+        Path(__file__).resolve().parent.parent
+        / "scripts"
+        / "windows"
+        / "start_opencli_browser.cmd"
+    )
     if not script.is_file():
         return False, f"未找到 OpenCLI Browser Bridge 启动脚本: {script}"
 

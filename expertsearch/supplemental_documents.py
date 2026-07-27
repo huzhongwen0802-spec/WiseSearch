@@ -8,7 +8,7 @@ from typing import Any, Iterable
 
 from docx import Document
 from pypdf import PdfReader
-from safe_logging import safe_print
+from .safe_logging import safe_print
 
 EXPERT_EVIDENCE_MARKERS = [
     "教授", "研究员", "院士", "专家", "学者", "主任", "fellow", "professor",

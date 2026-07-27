@@ -7,9 +7,9 @@ import re
 import shutil
 import tempfile
 import pandas as pd
-from main import run_agent_task, get_dynamic_recommendations
-from supplemental_documents import extract_supplemental_documents
-from utils import (
+from expertsearch.main import run_agent_task, get_dynamic_recommendations
+from expertsearch.supplemental_documents import extract_supplemental_documents
+from expertsearch.utils import (
     data_source_summary,
     finalize_merged_experts,
     normalize_expert_name_for_dedupe,

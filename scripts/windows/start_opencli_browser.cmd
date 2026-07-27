@@ -1,10 +1,11 @@
 @echo off
 setlocal
-cd /d "%~dp0"
+for %%I in ("%~dp0..\..") do set "PROJECT_ROOT=%%~fI"
+cd /d "%PROJECT_ROOT%"
 
 set "BROWSER=C:\Program Files (x86)\Microsoft\Edge\Application\msedge.exe"
-set "PROFILE=%~dp0tools\opencli\edge-headless-profile"
-set "EXTENSION=%~dp0tools\opencli\extension"
+set "PROFILE=%PROJECT_ROOT%\tools\opencli\edge-headless-profile"
+set "EXTENSION=%PROJECT_ROOT%\tools\opencli\extension"
 
 if not exist "%BROWSER%" goto edge_missing
 
@@ -16,7 +17,7 @@ start "OpenCLI Browser Bridge" /min "%BROWSER%" --start-minimized --user-data-di
 
 echo.
 echo OpenCLI minimized Edge bridge started.
-echo Run check_opencli.cmd to verify the Browser Bridge connection.
+echo Run scripts\windows\check_opencli.cmd to verify the Browser Bridge connection.
 endlocal
 exit /b 0
 

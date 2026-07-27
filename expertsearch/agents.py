@@ -12,13 +12,13 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
 from langchain_tavily import TavilySearch
-from state import AgentState, require_state_value
-from openalex_client import build_openalex_context
-from semantic_scholar_client import build_semantic_scholar_context
-from llm_safety import is_sensitive_word_error, sanitize_for_llm
-from safe_logging import safe_print
-from source_registry import fetchable_source_records
-from supplemental_documents import compact_supplemental_document_context
+from .state import AgentState, require_state_value
+from .openalex_client import build_openalex_context
+from .semantic_scholar_client import build_semantic_scholar_context
+from .llm_safety import is_sensitive_word_error, sanitize_for_llm
+from .safe_logging import safe_print
+from .source_registry import fetchable_source_records
+from .supplemental_documents import compact_supplemental_document_context
 
 SUPPLEMENTAL_HEADERS = {
     "User-Agent": (

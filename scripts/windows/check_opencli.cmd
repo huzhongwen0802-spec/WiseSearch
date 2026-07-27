@@ -1,8 +1,9 @@
 @echo off
 setlocal
-cd /d "%~dp0"
+for %%I in ("%~dp0..\..") do set "PROJECT_ROOT=%%~fI"
+cd /d "%PROJECT_ROOT%"
 set "NODE=C:\Program Files\nodejs\node.exe"
-set "LOCAL_ENTRY=%~dp0tools\opencli\runtime\node_modules\@jackwener\opencli\dist\src\main.js"
+set "LOCAL_ENTRY=%PROJECT_ROOT%\tools\opencli\runtime\node_modules\@jackwener\opencli\dist\src\main.js"
 set "OPENCLI=%APPDATA%\npm\opencli.cmd"
 
 if exist "%NODE%" if exist "%LOCAL_ENTRY%" (

@@ -10,10 +10,10 @@ import requests
 from dotenv import load_dotenv
 from langchain_tavily import TavilySearch
 
-from openalex_client import get_openalex_author_metrics, get_openalex_china_collaboration_evidence
-from semantic_scholar_client import get_semantic_scholar_author_metrics
-from safe_logging import safe_print
-from opencli_homepage_client import read_homepage_with_opencli, reset_opencli_call_budget
+from .openalex_client import get_openalex_author_metrics, get_openalex_china_collaboration_evidence
+from .semantic_scholar_client import get_semantic_scholar_author_metrics
+from .safe_logging import safe_print
+from .opencli_homepage_client import read_homepage_with_opencli, reset_opencli_call_budget
 
 load_dotenv()
 
