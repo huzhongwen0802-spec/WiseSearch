@@ -206,7 +206,7 @@ def select_balanced_top_experts(
 # 1. 页面基本设置
 page_title = "全球人才信息检索系统" if DEMO_MODE else "全球顶尖专家检索引擎"
 display_title = page_title
-brand_html = '<div class="app-brand">WiseSearch</div>' if DEMO_MODE else ""
+brand_html = '<div class="app-brand">Wise Search</div>' if DEMO_MODE else ""
 st.set_page_config(page_title=page_title, page_icon="🌐", layout="centered")
 
 # 2. 页面标题与说明
@@ -227,12 +227,14 @@ st.markdown(
         }
 
         .app-brand {
-            color: #2563eb;
-            font-size: 18px;
-            font-weight: 700;
+            width: 100%;
+            color: #1d4ed8;
+            font-size: 30px;
+            font-weight: 800;
             letter-spacing: 0;
             line-height: 1.2;
-            margin: 0 0 8px 56px;
+            text-align: center;
+            margin: 0 0 14px 0;
         }
 
         .app-title .title-icon {
