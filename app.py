@@ -204,9 +204,11 @@ def select_balanced_top_experts(
     )
 
 # 1. 页面基本设置
-page_title = "全球人才信息检索系统" if DEMO_MODE else "全球顶尖专家检索引擎"
+page_title = "全球人才检索系统" if DEMO_MODE else "全球顶尖专家检索引擎"
 display_title = page_title
 brand_html = '<div class="app-brand">Wise Search</div>' if DEMO_MODE else ""
+title_container_class = "app-title demo-app-title" if DEMO_MODE else "app-title"
+title_text_class = "title-text demo-title-text" if DEMO_MODE else "title-text"
 st.set_page_config(page_title=page_title, page_icon="🌐", layout="centered")
 
 # 2. 页面标题与说明
@@ -229,12 +231,20 @@ st.markdown(
         .app-brand {
             width: 100%;
             color: #1d4ed8;
-            font-size: 30px;
+            font-size: 40px;
             font-weight: 800;
             letter-spacing: 0;
             line-height: 1.2;
             text-align: center;
-            margin: 0 0 14px 0;
+            margin: 0 0 12px 0;
+        }
+
+        .demo-app-title {
+            justify-content: center;
+        }
+
+        .app-title .demo-title-text {
+            font-size: 30px;
         }
 
         .app-title .title-icon {
@@ -288,9 +298,9 @@ st.markdown(
     </style>
 
     __BRAND__
-    <div class="app-title">
+    <div class="__TITLE_CONTAINER_CLASS__">
         <div class="title-icon">🌐</div>
-        <div class="title-text">__TITLE__</div>
+        <div class="__TITLE_TEXT_CLASS__">__TITLE__</div>
     </div>
     <p class="app-subtitle">
         请输入您想探索的学科领域，系统将驱动多智能体深入全网，为您挖掘并交叉验证
@@ -298,6 +308,8 @@ st.markdown(
     </p>
     """
     .replace("__BRAND__", brand_html)
+    .replace("__TITLE_CONTAINER_CLASS__", title_container_class)
+    .replace("__TITLE_TEXT_CLASS__", title_text_class)
     .replace("__TITLE__", display_title)
     .replace("__TARGET__", str(EXPERTS_PER_SUBDOMAIN)),
     unsafe_allow_html=True,
