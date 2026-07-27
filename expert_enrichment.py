@@ -317,7 +317,9 @@ def _make_tavily() -> TavilySearch | None:
         return None
     return TavilySearch(
         max_results=int(os.environ.get("EXPERT_ENRICHMENT_TAVILY_RESULTS", "5")),
-        search_depth="advanced",
+        search_depth=os.environ.get(
+            "EXPERT_ENRICHMENT_TAVILY_SEARCH_DEPTH", "advanced"
+        ),
         topic="general",
         include_answer=False,
         handle_tool_error=True,
@@ -365,7 +367,11 @@ def _fetch_homepage_item(row_data: dict[str, Any]) -> list[dict[str, str]]:
         return []
 
     try:
-        response = requests.get(url, headers=HOMEPAGE_HEADERS, timeout=12)
+        response = requests.get(
+            url,
+            headers=HOMEPAGE_HEADERS,
+            timeout=float(os.environ.get("EXPERT_ENRICHMENT_HOMEPAGE_TIMEOUT_SECONDS", "12")),
+        )
         response.raise_for_status()
     except Exception as exc:
         safe_print(f"[专家补全警告] 个人主页访问失败: {name} | {url} | {exc}")
@@ -862,29 +868,46 @@ def _apply_tavily_details(row_data: dict[str, Any], query: str, tavily: TavilySe
         return False
 
     base = f'"{name}" "{institution}" {research}'.strip()
-    profile_items = _search(tavily, f'{base} official homepage email biography education PhD CV')
-
-    email_items = []
-    if not _has_valid_email(row_data.get("邮箱/电话")):
-        email_items = _search(tavily, f'"{name}" "{institution}" email contact')
-
-    education_items = []
-    if _is_placeholder(row_data.get("教育背景")):
-        education_items = _search(tavily, f'"{name}" "{institution}" education biography PhD CV degree')
-
-    title_items = []
-    if _is_placeholder(row_data.get("入选依据")):
-        title_items = _search(
+    compact_search = os.environ.get(
+        "EXPERT_ENRICHMENT_COMPACT_TAVILY", ""
+    ).strip().lower() in {"1", "true", "yes", "on"}
+    if compact_search:
+        profile_items = _search(
             tavily,
-            f'{base} IEEE Fellow ACM Fellow AAAI Fellow National Academy award honors',
+            (
+                f'{base} official homepage email biography education PhD '
+                "IEEE Fellow ACM Fellow AAAI Fellow National Academy award "
+                "China collaboration Chinese university"
+            ),
         )
+        email_items = profile_items
+        education_items = profile_items
+        title_items = profile_items
+        collab_items = profile_items
+    else:
+        profile_items = _search(tavily, f'{base} official homepage email biography education PhD CV')
 
-    collab_items = []
-    if _needs_collaboration_evidence(row_data.get("国内合作学者与单位")):
-        collab_items = _search(
-            tavily,
-            f'{base} China collaboration Chinese coauthor university project',
-        )
+        email_items = []
+        if not _has_valid_email(row_data.get("邮箱/电话")):
+            email_items = _search(tavily, f'"{name}" "{institution}" email contact')
+
+        education_items = []
+        if _is_placeholder(row_data.get("教育背景")):
+            education_items = _search(tavily, f'"{name}" "{institution}" education biography PhD CV degree')
+
+        title_items = []
+        if _is_placeholder(row_data.get("入选依据")):
+            title_items = _search(
+                tavily,
+                f'{base} IEEE Fellow ACM Fellow AAAI Fellow National Academy award honors',
+            )
+
+        collab_items = []
+        if _needs_collaboration_evidence(row_data.get("国内合作学者与单位")):
+            collab_items = _search(
+                tavily,
+                f'{base} China collaboration Chinese coauthor university project',
+            )
 
     all_items = profile_items + email_items + education_items + title_items + collab_items
     for item in all_items:

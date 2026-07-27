@@ -7,6 +7,7 @@ from unittest.mock import patch
 import pandas as pd
 
 import agents
+import expert_enrichment
 import utils
 
 
@@ -105,6 +106,27 @@ class DemoFastModeTests(unittest.TestCase):
         )
 
         self.assertEqual(utils.estimate_citations(row), 20000)
+
+    def test_compact_tavily_enrichment_uses_one_search(self):
+        row = {
+            "专家姓名": "Test Expert",
+            "工作单位": "Test University",
+            "研究兴趣": "Artificial Intelligence",
+            "个人主页": "暂无公开信息",
+            "邮箱/电话": "暂无公开信息",
+            "教育背景": "暂无公开信息",
+            "入选依据": "暂无公开信息",
+            "国内合作学者与单位": "暂无公开信息",
+        }
+        with patch.dict(os.environ, {"EXPERT_ENRICHMENT_COMPACT_TAVILY": "true"}):
+            with patch.object(
+                expert_enrichment,
+                "_search",
+                return_value=[],
+            ) as search_mock:
+                expert_enrichment._apply_tavily_details(row, "人工智能", object())
+
+        search_mock.assert_called_once()
 
 
 if __name__ == "__main__":

@@ -288,7 +288,7 @@ st.divider()
 if DEMO_MODE:
     st.info(
         f"现场演示模式：本次仅运行 1 个细分领域，最终最多输出 "
-        f"{DEMO_TOTAL_EXPERTS} 位专家；质量平衡链路目标耗时约 5 分钟以内。"
+        f"{DEMO_TOTAL_EXPERTS} 位专家；质量平衡链路目标耗时约 3 分钟。"
     )
 
 # 3. 矩阵式批量检索输入区

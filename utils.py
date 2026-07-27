@@ -1254,14 +1254,26 @@ def add_ranking_metrics(df: pd.DataFrame, query: str = "", include_chinese_exper
     ).strip().lower() in {"1", "true", "yes", "on"}
     if fast_demo_mode:
         safe_print(
-            "[演示质量链路] 恢复逐人 OpenAlex 指标与限量主页/Tavily/生存核验；"
-            "继续跳过 Semantic Scholar 和最终全量深挖。"
+            "[演示质量链路] 三分钟平衡模式：保留逐人 OpenAlex 指标，"
+            "限量执行主页与合并 Tavily 补查；跳过高耗时深挖。"
         )
+        stage_started = time.perf_counter()
         df = enrich_openalex_metrics(df, query)
+        safe_print(
+            f"[演示质量耗时] OpenAlex指标={time.perf_counter() - stage_started:.1f} 秒。"
+        )
+        stage_started = time.perf_counter()
         df = enrich_expert_details(df, query)
+        safe_print(
+            f"[演示质量耗时] 限量网页补全={time.perf_counter() - stage_started:.1f} 秒。"
+        )
         df = normalize_homepage_access_status(df)
         df = clean_contact_fields(df)
+        stage_started = time.perf_counter()
         df = verify_survival_status(df, query)
+        safe_print(
+            f"[演示质量耗时] 生存核验={time.perf_counter() - stage_started:.1f} 秒。"
+        )
         df = filter_deceased_experts(df)
     else:
         df = enrich_openalex_metrics(df, query)
