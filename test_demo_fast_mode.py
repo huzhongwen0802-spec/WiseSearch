@@ -42,7 +42,7 @@ class DemoFastModeTests(unittest.TestCase):
 
         self.assertEqual(len(result), 1)
 
-    def test_ranking_skips_per_expert_network_enrichment(self):
+    def test_ranking_uses_openalex_and_limited_enrichment(self):
         df = pd.DataFrame(
             [
                 {
@@ -56,20 +56,55 @@ class DemoFastModeTests(unittest.TestCase):
                 }
             ]
         )
-        blocked = AssertionError("demo ranking must not run per-expert network tools")
+        openalex_result = df.assign(
+            OpenAlex匹配姓名="Test Expert",
+            OpenAlex作者ID="https://openalex.org/A1",
+            OpenAlex主题="Artificial Intelligence",
+            i10指数=40,
+            总被引次数=5000,
+        )
         with patch.dict(os.environ, {"EXPERTSEARCH_DEMO_FAST_MODE": "true"}):
-            with patch.object(utils, "enrich_openalex_metrics", side_effect=blocked):
-                with patch.object(utils, "enrich_semantic_scholar_metrics", side_effect=blocked):
-                    with patch.object(utils, "enrich_expert_details", side_effect=blocked):
-                        with patch.object(utils, "verify_survival_status", side_effect=blocked):
+            with patch.object(
+                utils,
+                "enrich_openalex_metrics",
+                return_value=openalex_result,
+            ) as openalex_mock:
+                with patch.object(
+                    utils,
+                    "enrich_expert_details",
+                    side_effect=lambda value, query: value,
+                ) as enrichment_mock:
+                    with patch.object(
+                        utils,
+                        "verify_survival_status",
+                        side_effect=lambda value, query: value,
+                    ) as survival_mock:
+                        with patch.object(
+                            utils,
+                            "enrich_semantic_scholar_metrics",
+                            side_effect=AssertionError(
+                                "demo quality mode must not run Semantic Scholar"
+                            ),
+                        ):
                             result = utils.add_ranking_metrics(
                                 df,
                                 "计算机科学领域下的人工智能方向顶级专家信息",
                                 include_chinese_experts=True,
                             )
 
+        openalex_mock.assert_called_once()
+        enrichment_mock.assert_called_once()
+        survival_mock.assert_called_once()
         self.assertEqual(len(result), 1)
         self.assertEqual(result.iloc[0]["评价_H指数"], 50.0)
+        self.assertEqual(result.iloc[0]["评价_总被引次数"], 5000)
+
+    def test_citation_parser_does_not_treat_year_as_citations(self):
+        row = pd.Series(
+            {"主要成果": "代表作《Example》(2009, 引用超2万次)"}
+        )
+
+        self.assertEqual(utils.estimate_citations(row), 20000)
 
 
 if __name__ == "__main__":

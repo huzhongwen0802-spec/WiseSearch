@@ -654,18 +654,34 @@ def estimate_citations(row: pd.Series) -> float:
         for column in ["主要成果", "研究兴趣", "职位", "教育背景"]
         if column in row.index
     )
+    number_pattern = r"(\d+(?:,\d{3})*(?:\.\d+)?)"
+    unit_pattern = r"(万|千|[kKmM]|million|thousand)?"
     number_before_matches = re.findall(
-        r"(\d[\d,]*(?:\.\d+)?)\s*(?:次)?\s*(?:引用|被引|citations?|cited)",
+        rf"{number_pattern}\s*{unit_pattern}\s*(?:次)?\s*(?:引用|被引|citations?|cited)",
         evidence_text,
         flags=re.IGNORECASE,
     )
     number_after_matches = re.findall(
-        r"(?:引用|被引|被引用|citations?|cited)\s*(\d[\d,]*(?:\.\d+)?)\s*(?:次)?",
+        rf"(?:引用|被引|被引用|citations?|cited)\s*"
+        rf"(?:约|超|超过|逾|over|more\s+than)?\s*"
+        rf"{number_pattern}\s*{unit_pattern}\s*(?:次)?",
         evidence_text,
         flags=re.IGNORECASE,
     )
+
+    def scaled_value(match: tuple[str, str]) -> float:
+        value = parse_metric_number(match[0])
+        unit = str(match[1] or "").lower()
+        if unit in {"万"}:
+            return value * 10000
+        if unit in {"千", "k", "thousand"}:
+            return value * 1000
+        if unit in {"m", "million"}:
+            return value * 1000000
+        return value
+
     citation_values = [
-        parse_metric_number(match)
+        scaled_value(match)
         for match in number_before_matches + number_after_matches
     ]
     return max(citation_values) if citation_values else 0.0
@@ -1238,14 +1254,14 @@ def add_ranking_metrics(df: pd.DataFrame, query: str = "", include_chinese_exper
     ).strip().lower() in {"1", "true", "yes", "on"}
     if fast_demo_mode:
         safe_print(
-            "[演示快速链路] 跳过逐人 OpenAlex/Semantic Scholar、主页/OpenCLI、"
-            "Tavily 补全和生存状态联网核验；使用研究员已有证据完成 Python 清洗与评分。"
+            "[演示质量链路] 恢复逐人 OpenAlex 指标与限量主页/Tavily/生存核验；"
+            "继续跳过 Semantic Scholar 和最终全量深挖。"
         )
-        for column in ["i10指数", "总被引次数"]:
-            if column not in df.columns:
-                df[column] = "暂无公开信息"
+        df = enrich_openalex_metrics(df, query)
+        df = enrich_expert_details(df, query)
         df = normalize_homepage_access_status(df)
         df = clean_contact_fields(df)
+        df = verify_survival_status(df, query)
         df = filter_deceased_experts(df)
     else:
         df = enrich_openalex_metrics(df, query)

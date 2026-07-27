@@ -760,6 +760,13 @@ def researcher_node(state: AgentState):
         f"### Semantic Scholar 证据\n{sanitize_for_llm(evidence['Semantic Scholar'])}"
     )
     system_msg = scope_policy + "\n" + RESEARCHER_PROMPT
+    if _fast_demo_mode():
+        system_msg += (
+            "\n现场演示质量要求：候选人必须与用户指定的细分领域有直接、具体且可说明的"
+            "代表成果。不得仅凭宽泛的同一大领域身份入选；例如检索人工智能或机器学习时，"
+            "只有密码学、数据库、网络或理论计算机贡献而没有直接 AI/机器学习成果的专家"
+            "不得入选。优先选择能从提供证据中确认身份、机构、指标和主页的人选。"
+        )
     target_count = max(
         1,
         int(state.get("target_expert_count") or os.environ.get("RESEARCHER_TARGET_EXPERTS", "20")),
