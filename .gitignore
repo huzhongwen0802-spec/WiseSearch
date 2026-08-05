@@ -34,3 +34,5 @@ tools/opencli/*.zip
 .idea/
 .DS_Store
 Thumbs.db
+
+tmp/
