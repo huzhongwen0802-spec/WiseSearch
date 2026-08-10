@@ -218,7 +218,7 @@ st.markdown(
         .app-brand {
             width: 100%;
             color: #1d4ed8;
-            font-size: 42px;
+            font-size: 48px;
             font-weight: 800;
             letter-spacing: 0;
             line-height: 1.2;
@@ -276,7 +276,7 @@ st.markdown(
         }
     </style>
 
-    <div class="app-brand">Wise Search</div>
+    <div class="app-brand">WiseSearch</div>
     <div class="app-title">
         <div class="title-icon">🌐</div>
         <div class="title-text">全球人才信息检索系统</div>
