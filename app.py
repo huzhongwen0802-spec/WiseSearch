@@ -1,11 +1,13 @@
 # -*- coding: utf-8 -*-
 
 import streamlit as st
+import base64
 import time
 import os
 import re
 import shutil
 import tempfile
+from pathlib import Path
 import pandas as pd
 from expertsearch.main import run_agent_task, get_dynamic_recommendations
 from expertsearch.supplemental_documents import extract_supplemental_documents
@@ -83,9 +85,41 @@ DEFAULT_SUB_DOMAINS = [
     "产业转化",
 ]
 
-EXPERTS_PER_SUBDOMAIN = max(
-    1, int(os.environ.get("SUBDOMAIN_TARGET_EXPERTS", "15"))
+EXPERTS_PER_ROUND = 15
+MIN_SEARCH_ROUNDS = 1
+MAX_SEARCH_ROUNDS = 20
+DEFAULT_SEARCH_ROUNDS_PER_SUBDOMAIN = min(
+    MAX_SEARCH_ROUNDS,
+    max(MIN_SEARCH_ROUNDS, int(os.environ.get("SUBDOMAIN_SEARCH_ROUNDS", "10"))),
 )
+
+
+def build_search_round_conditions(round_count: int) -> list[str]:
+    """构造每个细分领域的分层检索轮次，每轮目标人数保持一致。"""
+    round_focuses = [
+        "顶尖权威学者，如院士、最高奖项获得者和领域奠基人",
+        "高影响力学者，如高被引研究者、重要学术组织 Fellow 和资深教授",
+        "杰出中坚研究者，如重点实验室负责人、项目负责人和活跃学术带头人",
+        "优秀青年与新兴方向领军学者，如青年 Fellow、重要青年奖项获得者",
+        "跨机构、产业转化和国际合作中具有代表性的高质量专家",
+        "此前轮次尚未覆盖的跨国家、跨区域高质量专家，优先核验其当前任职和领域相关性",
+        "对遗漏候选进行补充复核，重点寻找具备权威主页、学术数据库或奖项名录证据的专家",
+        "来自不同国家和区域重点科研机构的代表性专家，扩大地域与机构覆盖面",
+        "与该领域直接相关的交叉学科专家，要求提供明确成果或项目证据",
+        "权威人才名录、重要学术会议和专业协会中此前未覆盖的高质量专家",
+    ]
+    conditions = []
+    for round_index in range(round_count):
+        focus = (
+            round_focuses[round_index]
+            if round_index < len(round_focuses)
+            else "此前轮次未覆盖、但具有直接领域证据的高质量专家"
+        )
+        conditions.append(
+            f"第 {round_index + 1} 轮：检索 {EXPERTS_PER_ROUND} 位{focus}；"
+            "必须排除该细分领域此前轮次已经出现的专家"
+        )
+    return conditions
 
 
 def get_static_sub_domain_options(main_domain: str) -> list[str]:
@@ -159,11 +193,11 @@ def new_batch_expert_names(excel_path: str, excluded_name_keys: set[str]) -> lis
 def select_balanced_top_experts(
     df: pd.DataFrame,
     sub_domains: list[str],
-    target_total: int = EXPERTS_PER_SUBDOMAIN,
+    target_total: int,
 ) -> pd.DataFrame:
     """
     最终总表最多输出 target_total 人，并尽量在已选细分领域之间均衡分配名额。
-    调用方按每个细分领域最多 EXPERTS_PER_SUBDOMAIN 人计算总容量。
+    调用方按本次设置的“每轮人数 × 轮次数 × 细分领域数”计算总容量。
     """
     if df.empty or len(df) <= target_total:
         return df
@@ -198,6 +232,13 @@ def select_balanced_top_experts(
 st.set_page_config(page_title="全球人才信息检索系统", page_icon="🌐", layout="centered")
 
 # 2. 页面标题与说明
+brand_icon_path = Path(__file__).resolve().parent / "docs" / "assets" / "wisesearch-talent-icon.png"
+brand_icon_base64 = base64.b64encode(brand_icon_path.read_bytes()).decode("ascii")
+brand_icon_html = (
+    f'<img src="data:image/png;base64,{brand_icon_base64}" '
+    'alt="WiseSearch 全球人才检索图标">'
+)
+
 st.markdown(
     """
     <style>
@@ -227,8 +268,17 @@ st.markdown(
         }
 
         .app-title .title-icon {
-            font-size: 42px;
-            line-height: 1;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            flex: 0 0 auto;
+        }
+
+        .app-title .title-icon img {
+            display: block;
+            width: 76px;
+            height: 58px;
+            object-fit: contain;
         }
 
         .app-title .title-text {
@@ -243,6 +293,7 @@ st.markdown(
             color: #111827;
             font-size: 16px;
             line-height: 1.65;
+            text-align: center;
             margin: 0 0 48px 0;
         }
 
@@ -251,6 +302,7 @@ st.markdown(
         }
 
         div[data-testid="stTextInput"] label,
+        div[data-testid="stNumberInput"] label,
         div[data-testid="stCheckbox"] label {
             color: #111827;
             font-size: 15px;
@@ -268,7 +320,24 @@ st.markdown(
             height: 41px;
             border-radius: 7px;
             font-size: 16px;
-            font-weight: 500;
+            font-weight: 600;
+            color: #ffffff;
+            background-color: #2563eb;
+            border: 1px solid #2563eb;
+            box-shadow: 0 2px 6px rgba(37, 99, 235, 0.22);
+        }
+
+        div.stButton > button:hover {
+            color: #ffffff;
+            background-color: #1d4ed8;
+            border-color: #1d4ed8;
+        }
+
+        div.stButton > button:focus:not(:active) {
+            color: #ffffff;
+            background-color: #2563eb;
+            border-color: #2563eb;
+            box-shadow: 0 0 0 3px rgba(37, 99, 235, 0.2);
         }
 
         div[data-testid="stHorizontalBlock"] {
@@ -278,14 +347,13 @@ st.markdown(
 
     <div class="app-brand">WiseSearch</div>
     <div class="app-title">
-        <div class="title-icon">🌐</div>
+        <div class="title-icon">__BRAND_ICON__</div>
         <div class="title-text">全球人才信息检索系统</div>
     </div>
     <p class="app-subtitle">
-        请输入您想探索的学科领域，系统将驱动多智能体深入全网，为您挖掘并交叉验证
-        每个细分领域 <strong>__TARGET__ 位</strong> 顶尖专家的核心学术履历。
+        请输入您想探索的学科领域，多智能体系统将为您深度挖掘并匹配该领域全球人才信息。
     </p>
-    """.replace("__TARGET__", str(EXPERTS_PER_SUBDOMAIN)),
+    """.replace("__BRAND_ICON__", brand_icon_html),
     unsafe_allow_html=True,
 )
 st.divider()
@@ -298,6 +366,24 @@ include_chinese_experts = st.checkbox(
     value=False,
     help="勾选后检索结果允许包含中国大陆、港澳台专家；不勾选时系统会尽量避开国内专家。",
 )
+search_rounds_per_subdomain = int(
+    st.number_input(
+        "每个细分领域查询轮次",
+        min_value=MIN_SEARCH_ROUNDS,
+        max_value=MAX_SEARCH_ROUNDS,
+        value=DEFAULT_SEARCH_ROUNDS_PER_SUBDOMAIN,
+        step=1,
+        help=(
+            f"每轮固定查询 {EXPERTS_PER_ROUND} 位专家。"
+            f"默认 {DEFAULT_SEARCH_ROUNDS_PER_SUBDOMAIN} 轮，可按本次任务调整。"
+        ),
+    )
+)
+experts_per_subdomain = EXPERTS_PER_ROUND * search_rounds_per_subdomain
+st.caption(
+    f"每轮固定 {EXPERTS_PER_ROUND} 位；当前设置为每个细分领域 "
+    f"{search_rounds_per_subdomain} 轮，目标共 {experts_per_subdomain} 位。"
+)
 if "农业" in main_domain and not include_chinese_experts:
     st.warning("当前农业项目反馈要求结果中必须包含中国专家，请勾选“是否需要国内专家”。")
 
@@ -305,6 +391,8 @@ if "last_ai_domain" not in st.session_state:
     st.session_state.last_ai_domain = ""
 if "ai_preset_options" not in st.session_state:
     st.session_state.ai_preset_options = []
+if "last_task_result" not in st.session_state:
+    st.session_state.last_task_result = None
 
 if main_domain and use_ai_recommendations and main_domain != st.session_state.last_ai_domain:
     with st.spinner(f'🤖 智能体正在为您测算【{main_domain}】的细分子领域...'):
@@ -367,7 +455,11 @@ with st.expander("🔗 其他数据源补充", expanded=False):
     if uploaded_supplemental_files:
         st.caption(f"已选择 {len(uploaded_supplemental_files)} 个补充文件。")
 
-submit_button = st.button("🚀 启动全网深度批量检索", use_container_width=True)
+submit_button = st.button(
+    "🚀 启动全网深度批量检索",
+    type="primary",
+    use_container_width=True,
+)
 
 # 4. 点击按钮后的核心逻辑
 if submit_button:
@@ -379,6 +471,7 @@ if submit_button:
     elif len(final_sub_domains) == 0:
         st.warning("⚠️ 请至少勾选一个常用细分领域，或在右侧填写至少一个自定义领域！")
     else:
+        st.session_state.last_task_result = None
         supplemental_document_context, supplemental_document_names, document_warnings = (
             extract_supplemental_documents(uploaded_supplemental_files)
         )
@@ -390,7 +483,12 @@ if submit_button:
                 + "、".join(supplemental_document_names)
             )
         expert_scope_label = "包含国内专家" if include_chinese_experts else "避开国内专家"
-        st.info(f"🧠 **批量指令已下达**：即将对【{main_domain}】下的 {len(final_sub_domains)} 个细分方向进行深度挖掘！检索范围：{expert_scope_label}")
+        st.info(
+            f"🧠 **批量指令已下达**：即将对【{main_domain}】下的 "
+            f"{len(final_sub_domains)} 个细分方向进行深度挖掘！"
+            f"每个方向 {search_rounds_per_subdomain} 轮、每轮 {EXPERTS_PER_ROUND} 位，"
+            f"检索范围：{expert_scope_label}"
+        )
         st.write("**检索任务清单：**", "、".join(final_sub_domains))
         
         start_time = time.time()
@@ -407,14 +505,8 @@ if submit_button:
                 batch_output_dir = tempfile.mkdtemp(prefix="expertsearch_batches_")
                 batch_files = []
 
-                # 每个细分领域先执行一次综合检索，不足目标人数时再自动补位。
-                batch_conditions = [
-                    (
-                        f"综合筛选该细分领域最具代表性的前 {EXPERTS_PER_SUBDOMAIN} 位专家，"
-                        "兼顾顶尖权威学者、高影响力研究者、重要奖项或学术组织成员，"
-                        "并优先保证领域关联证据和身份信息真实完整"
-                    ),
-                ]
+                # 每个细分领域执行多轮分层检索，每轮独立获取目标人数并跨轮排重。
+                batch_conditions = build_search_round_conditions(search_rounds_per_subdomain)
 
                 progress_bar = st.progress(0)
                 total_sub_domains = len(final_sub_domains)
@@ -427,19 +519,20 @@ if submit_button:
                 
                 for i, sub in enumerate(final_sub_domains):
                     st.toast(
-                        f"正在启动 {sub} 方向的 {EXPERTS_PER_SUBDOMAIN} 人精确检索...",
+                        f"正在启动 {sub} 方向的 {len(batch_conditions)} 轮分层检索，"
+                        f"每轮目标 {EXPERTS_PER_ROUND} 位...",
                         icon="🚀",
                     )
                     subdomain_names = []
                     subdomain_name_keys = set()
 
-                    # 针对当前细分领域发起综合检索；不足目标人数时自动补位。
+                    # 针对当前细分领域逐轮检索；每轮不足目标人数时自动补位。
                     for batch_idx, condition in enumerate(batch_conditions):
                         st.info(f"🔎 正在挖掘：【{sub}】 - {condition}")
                         tier_new_names = []
 
                         for attempt in range(tier_recovery_attempts + 1):
-                            remaining = EXPERTS_PER_SUBDOMAIN - len(tier_new_names)
+                            remaining = EXPERTS_PER_ROUND - len(tier_new_names)
                             if remaining <= 0:
                                 break
 
@@ -486,8 +579,8 @@ if submit_button:
                                 st.success(
                                     f"✅ 【{sub}】第 {batch_idx + 1} 检索轮次第 {attempt + 1} 次尝试"
                                     f"新增 {len(added_names)} 位，本轮累计 "
-                                    f"{len(tier_new_names)}/{EXPERTS_PER_SUBDOMAIN} 位，"
-                                    f"该细分领域累计 {len(subdomain_names)}/{EXPERTS_PER_SUBDOMAIN} 位。"
+                                    f"{len(tier_new_names)}/{EXPERTS_PER_ROUND} 位，"
+                                    f"该细分领域累计 {len(subdomain_names)}/{experts_per_subdomain} 位。"
                                 )
                             else:
                                 error_detail = (
@@ -500,10 +593,10 @@ if submit_button:
                                     f"{error_detail}"
                                 )
 
-                        if len(tier_new_names) < EXPERTS_PER_SUBDOMAIN:
+                        if len(tier_new_names) < EXPERTS_PER_ROUND:
                             st.warning(
                                 f"【{sub}】本轮检索在补位后实际新增 "
-                                f"{len(tier_new_names)}/{EXPERTS_PER_SUBDOMAIN} 位，"
+                                f"{len(tier_new_names)}/{EXPERTS_PER_ROUND} 位，"
                                 "稍后将执行细分领域最终补位。"
                             )
                         
@@ -513,10 +606,10 @@ if submit_button:
 
                     # 综合检索结束后，对整个细分领域继续补齐到目标人数。
                     for topup_attempt in range(final_topup_attempts):
-                        remaining = EXPERTS_PER_SUBDOMAIN - len(subdomain_names)
+                        remaining = experts_per_subdomain - len(subdomain_names)
                         if remaining <= 0:
                             break
-                        requested = min(EXPERTS_PER_SUBDOMAIN, remaining)
+                        requested = min(EXPERTS_PER_ROUND, remaining)
                         st.info(
                             f"🧩 【{sub}】正在执行最终补位第 {topup_attempt + 1} 次，"
                             f"还缺 {remaining} 位，本次目标 {requested} 位。"
@@ -553,13 +646,13 @@ if submit_button:
                         subdomain_names.extend(added_names)
                         st.success(
                             f"✅ 【{sub}】最终补位新增 {len(added_names)} 位，"
-                            f"当前累计 {len(subdomain_names)}/{EXPERTS_PER_SUBDOMAIN} 位。"
+                            f"当前累计 {len(subdomain_names)}/{experts_per_subdomain} 位。"
                         )
 
-                    if len(subdomain_names) < EXPERTS_PER_SUBDOMAIN:
+                    if len(subdomain_names) < experts_per_subdomain:
                         st.warning(
                             f"【{sub}】完成所有补位后获得 "
-                            f"{len(subdomain_names)}/{EXPERTS_PER_SUBDOMAIN} 位互不重复专家。"
+                            f"{len(subdomain_names)}/{experts_per_subdomain} 位互不重复专家。"
                             "这通常表示可验证候选不足或外部服务持续失败，最终表将保留已核验数据。"
                         )
                 
@@ -598,7 +691,7 @@ if submit_button:
                         master_df = select_balanced_top_experts(
                             master_df,
                             final_sub_domains,
-                            target_total=EXPERTS_PER_SUBDOMAIN * len(final_sub_domains),
+                            target_total=experts_per_subdomain * len(final_sub_domains),
                         )
                         
                         final_count = len(master_df)
@@ -632,24 +725,15 @@ if submit_button:
                         # 结束计时
                         end_time = time.time()
                         elapsed_seconds = int(end_time - start_time)
-                        
-                        # 转化成分秒并用最普通的文本显示在前端
-                        minutes = elapsed_seconds // 60
-                        seconds = elapsed_seconds % 60
-                        st.write(f"⏱️ 智能体检索完毕！本次任务执行总耗时：{minutes} 分 {seconds} 秒")
+                        st.session_state.last_task_result = {
+                            "elapsed_seconds": elapsed_seconds,
+                            "expert_count": final_count,
+                            "file_name": master_file_name,
+                            "file_path": os.path.abspath(master_file_path),
+                        }
                         
                         # 【新增逻辑】：清理中间过程产生的碎片文件
                         shutil.rmtree(batch_output_dir, ignore_errors=True)
-                        
-                        # 3. 提供总表下载按钮
-                        with open(master_file_path, "rb") as file:
-                            st.download_button(
-                                label=f"📥 点击下载【全局大合并】Excel 报表 (共 {final_count} 位独立专家)",
-                                data=file,
-                                file_name=master_file_name,
-                                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-                                use_container_width=True
-                            )
                     else:
                         shutil.rmtree(batch_output_dir, ignore_errors=True)
                         st.error("⚠️ 中间批次未包含可合并的专家数据，未生成最终结果表。")
@@ -660,3 +744,33 @@ if submit_button:
                 if "batch_output_dir" in locals():
                     shutil.rmtree(batch_output_dir, ignore_errors=True)
                 st.error(f"❌ 检索过程中出现底层异常: {e}")
+
+last_task_result = st.session_state.last_task_result
+if last_task_result:
+    elapsed_seconds = int(last_task_result["elapsed_seconds"])
+    hours, remainder = divmod(elapsed_seconds, 3600)
+    minutes, seconds = divmod(remainder, 60)
+    elapsed_parts = []
+    if hours:
+        elapsed_parts.append(f"{hours} 小时")
+    if minutes or hours:
+        elapsed_parts.append(f"{minutes} 分")
+    elapsed_parts.append(f"{seconds} 秒")
+
+    st.success(f"⏱️ 智能体检索完毕！本次任务执行总耗时：{' '.join(elapsed_parts)}")
+
+    result_file_path = last_task_result["file_path"]
+    if os.path.exists(result_file_path):
+        with open(result_file_path, "rb") as file:
+            st.download_button(
+                label=(
+                    "📥 点击下载【全局大合并】Excel 报表 "
+                    f"(共 {last_task_result['expert_count']} 位独立专家)"
+                ),
+                data=file,
+                file_name=last_task_result["file_name"],
+                mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
+                use_container_width=True,
+            )
+    else:
+        st.warning("最近一次任务的结果文件已被移动或删除，暂时无法下载。")

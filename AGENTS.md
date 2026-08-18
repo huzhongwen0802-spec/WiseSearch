@@ -12,7 +12,7 @@ ExpertSearch 是一个基于 Streamlit + LangGraph 的全球专家检索系统�
 大领域_YYYYMMDD_HHMMSS_批量专家总名单.xlsx
 ```
 
-五个梯队的 `Expert_Data_*.xlsx` 仅作为运行期临时文件，必须写入系统临时目录；
+各检索轮次的 `Expert_Data_*.xlsx` 仅作为运行期临时文件，必须写入系统临时目录；
 `Expert_Results/` 只保留最终汇总结果，不向前端展示或保留中间批次文件。
 
 ## 运行方式
@@ -104,6 +104,7 @@ RESEARCHER_TOTAL_EVIDENCE_CHARS=22000
 RESEARCHER_CHUNK_SIZE=10
 RESEARCHER_TARGET_EXPERTS=20
 RESEARCHER_MAX_BATCH_ATTEMPTS=5
+SUBDOMAIN_SEARCH_ROUNDS=10
 SUBDOMAIN_TIER_RECOVERY_ATTEMPTS=2
 SUBDOMAIN_FINAL_TOPUP_ATTEMPTS=3
 DOCUMENT_PROCESSOR_INPUT_CHARS=12000
@@ -167,8 +168,8 @@ query + supplemental_document_context
 
 默认职责：
 
-- 前端按每个细分领域维护独立的历史专家名单，后续梯队必须排除当前细分领域此前已发现的人选。
-- 每个梯队目标为 20 位实际新增专家；不足时自动补位，五个梯队结束后继续执行细分领域级补位，尽量达到 100 位。
+- 前端按每个细分领域维护独立的历史专家名单，后续轮次必须排除当前细分领域此前已发现的人选。
+- 每轮固定查询 15 位专家。每个细分领域默认执行 10 轮分层检索，用户可在前端将本次任务调整为 1–20 轮；不足时先进行轮内补位，全部轮次结束后再执行细分领域级补位。默认单个细分领域最多形成约 150 位候选。
 - 不同细分领域之间允许同一专家重复出现；最终合并时保留该专家的多个细分领域归属。
 
 - OpenAlex：主学术数据库，优先用于 H 指数、i10、总被引、主题、作品证据。
