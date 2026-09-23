@@ -121,6 +121,7 @@ def _translation_llm() -> ChatOpenAI | None:
         api_key=api_key,
         base_url=api_base,
         streaming=False,
+        max_retries=0,
     )
 
 

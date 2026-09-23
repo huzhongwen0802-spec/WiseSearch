@@ -14,6 +14,7 @@ from .openalex_client import get_openalex_author_metrics, get_openalex_china_col
 from .semantic_scholar_client import get_semantic_scholar_author_metrics
 from .safe_logging import safe_print
 from .opencli_homepage_client import read_homepage_with_opencli, reset_opencli_call_budget
+from .tavily_client import create_tavily_search, invoke_tavily_search, tavily_is_configured
 
 load_dotenv()
 
@@ -313,15 +314,19 @@ def _name_variants(name: str, institution: str, query: str) -> list[str]:
 
 
 def _make_tavily() -> TavilySearch | None:
-    if not os.environ.get("TAVILY_API_KEY"):
+    if not tavily_is_configured():
         return None
-    return TavilySearch(
-        max_results=int(os.environ.get("EXPERT_ENRICHMENT_TAVILY_RESULTS", "5")),
-        search_depth="advanced",
-        topic="general",
-        include_answer=False,
-        handle_tool_error=True,
-    )
+    try:
+        return create_tavily_search(
+            max_results=int(os.environ.get("EXPERT_ENRICHMENT_TAVILY_RESULTS", "8")),
+            search_depth="advanced",
+            topic="general",
+            include_answer=False,
+            handle_tool_error=True,
+        )
+    except Exception as exc:
+        safe_print(f"[专家补全工具状态] Tavily 初始化失败，本轮使用其他工具继续: {exc}")
+        return None
 
 
 def _format_result_items(raw_result: Any) -> list[dict[str, str]]:
@@ -341,10 +346,42 @@ def _search(tavily: TavilySearch | None, query: str) -> list[dict[str, str]]:
     if tavily is None:
         return []
     try:
-        return _format_result_items(tavily.invoke({"query": query}))
+        return _format_result_items(
+            invoke_tavily_search(tavily, query, stage="专家字段定向补全")
+        )
     except Exception as exc:
         safe_print(f"[专家补全警告] Tavily 定向补查失败: {query} | {exc}")
         return []
+
+
+def _expert_tavily_evidence(
+    row_data: dict[str, Any],
+    query: str,
+    tavily: TavilySearch | None,
+    evidence_cache: dict[str, list[dict[str, str]]],
+) -> list[dict[str, str]]:
+    """Collect one broad evidence bundle per expert and reuse it across fill steps."""
+    name = str(row_data.get("专家姓名", "")).strip()
+    institution = str(row_data.get("工作单位", "")).strip()
+    research = str(row_data.get("研究兴趣", "")).strip()
+    if not name or _is_placeholder(name):
+        return []
+    if _is_placeholder(institution):
+        institution = ""
+    if _is_placeholder(research):
+        research = ""
+    cache_key = f"{name.lower()}|{institution.lower()}"
+    if cache_key in evidence_cache:
+        return evidence_cache[cache_key]
+
+    domain_terms = " ".join(re.findall(r"[\w+-]+", str(query or ""))[:8])
+    combined_query = (
+        f'"{name}" "{institution}" {research} {domain_terms} official homepage profile '
+        "email biography education PhD CV current position awards honors Fellow "
+        "China collaboration Chinese coauthor university project"
+    ).strip()
+    evidence_cache[cache_key] = _search(tavily, combined_query)
+    return evidence_cache[cache_key]
 
 
 def _html_to_text(page_html: str) -> str:
@@ -827,7 +864,12 @@ def _apply_homepage_details(row_data: dict[str, Any]) -> bool:
     return True
 
 
-def _retry_homepage_with_tavily(row_data: dict[str, Any], query: str, tavily: TavilySearch | None) -> bool:
+def _retry_homepage_with_tavily(
+    row_data: dict[str, Any],
+    query: str,
+    tavily: TavilySearch | None,
+    evidence_cache: dict[str, list[dict[str, str]]],
+) -> bool:
     if tavily is None:
         return False
 
@@ -836,11 +878,8 @@ def _retry_homepage_with_tavily(row_data: dict[str, Any], query: str, tavily: Ta
     if not name or _is_placeholder(name):
         return False
 
-    items = _search(tavily, f'"{name}" "{institution}" official homepage profile biography')
+    items = _expert_tavily_evidence(row_data, query, tavily, evidence_cache)
     homepage = _best_homepage(items, expert_name=name, institution=institution)
-    if not homepage:
-        items = _search(tavily, f'"{name}" "{institution}" faculty profile contact email')
-        homepage = _best_homepage(items, expert_name=name, institution=institution)
 
     current_homepage = str(row_data.get("个人主页", "")).strip()
     if not homepage or homepage == current_homepage:
@@ -850,43 +889,25 @@ def _retry_homepage_with_tavily(row_data: dict[str, Any], query: str, tavily: Ta
     return _apply_homepage_details(row_data)
 
 
-def _apply_tavily_details(row_data: dict[str, Any], query: str, tavily: TavilySearch | None) -> bool:
+def _apply_tavily_details(
+    row_data: dict[str, Any],
+    query: str,
+    tavily: TavilySearch | None,
+    evidence_cache: dict[str, list[dict[str, str]]],
+) -> bool:
     name = str(row_data.get("专家姓名", "")).strip()
     institution = str(row_data.get("工作单位", "")).strip()
-    research = str(row_data.get("研究兴趣", "")).strip()
     if _is_placeholder(institution):
         institution = ""
-    if _is_placeholder(research):
-        research = ""
     if not name or _is_placeholder(name):
         return False
 
-    base = f'"{name}" "{institution}" {research}'.strip()
-    profile_items = _search(tavily, f'{base} official homepage email biography education PhD CV')
-
-    email_items = []
-    if not _has_valid_email(row_data.get("邮箱/电话")):
-        email_items = _search(tavily, f'"{name}" "{institution}" email contact')
-
-    education_items = []
-    if _is_placeholder(row_data.get("教育背景")):
-        education_items = _search(tavily, f'"{name}" "{institution}" education biography PhD CV degree')
-
-    title_items = []
-    if _is_placeholder(row_data.get("入选依据")):
-        title_items = _search(
-            tavily,
-            f'{base} IEEE Fellow ACM Fellow AAAI Fellow National Academy award honors',
-        )
-
-    collab_items = []
-    if _needs_collaboration_evidence(row_data.get("国内合作学者与单位")):
-        collab_items = _search(
-            tavily,
-            f'{base} China collaboration Chinese coauthor university project',
-        )
-
-    all_items = profile_items + email_items + education_items + title_items + collab_items
+    all_items = _expert_tavily_evidence(row_data, query, tavily, evidence_cache)
+    profile_items = all_items
+    email_items = all_items
+    education_items = all_items
+    title_items = all_items
+    collab_items = all_items
     for item in all_items:
         _append_information_source(row_data, item.get("url"))
 
@@ -986,8 +1007,30 @@ def enrich_expert_details(
             max(0, int(os.environ.get("FINAL_ENRICHMENT_MAX_S2_ROWS", "20"))),
         )
         max_homepage_rows = target_rows
-        max_homepage_retry_rows = target_rows
-        max_tavily_rows = target_rows
+        max_homepage_retry_rows = min(
+            target_rows,
+            max(
+                0,
+                int(
+                    os.environ.get(
+                        "EXPERT_ENRICHMENT_EXHAUSTIVE_MAX_HOMEPAGE_RETRY_ROWS",
+                        str(target_rows),
+                    )
+                ),
+            ),
+        )
+        max_tavily_rows = min(
+            target_rows,
+            max(
+                0,
+                int(
+                    os.environ.get(
+                        "EXPERT_ENRICHMENT_EXHAUSTIVE_MAX_TAVILY_ROWS",
+                        str(target_rows),
+                    )
+                ),
+            ),
+        )
     else:
         max_openalex_retry_rows = int(os.environ.get("EXPERT_ENRICHMENT_MAX_OPENALEX_RETRY_ROWS", "4"))
         max_collab_rows = int(os.environ.get("EXPERT_ENRICHMENT_MAX_COLLAB_ROWS", "20"))
@@ -1005,6 +1048,7 @@ def enrich_expert_details(
     homepage_used = 0
     homepage_retry_used = 0
     tavily_used = 0
+    tavily_evidence_cache: dict[str, list[dict[str, str]]] = {}
     enriched_rows = []
     stats = {
         "openalex_attempted": 0,
@@ -1085,7 +1129,12 @@ def enrich_expert_details(
             elif homepage_retry_used < max_homepage_retry_rows:
                 homepage_retry_used += 1
                 stats["homepage_retry_attempted"] += 1
-                retry_success = _retry_homepage_with_tavily(row_data, query, tavily)
+                retry_success = _retry_homepage_with_tavily(
+                    row_data,
+                    query,
+                    tavily,
+                    tavily_evidence_cache,
+                )
                 row_data["成功访问主页"] = "是" if retry_success else "否"
                 stats["homepage_retry_success"] += int(retry_success)
             else:
@@ -1093,7 +1142,12 @@ def enrich_expert_details(
 
         if tavily_used < max_tavily_rows and _needs_tavily(row_data):
             before = _enrichment_gap_score(row_data)
-            _apply_tavily_details(row_data, query, tavily)
+            _apply_tavily_details(
+                row_data,
+                query,
+                tavily,
+                tavily_evidence_cache,
+            )
             tavily_used += 1
             stats["tavily_attempted"] += 1
             stats["tavily_improved"] += int(_enrichment_gap_score(row_data) < before)

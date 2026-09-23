@@ -75,7 +75,12 @@ OPENALEX_SECOND_PASS_VARIANTS=3
 FINAL_ENRICHMENT_MAX_S2_ROWS=20
 EXPERT_ENRICHMENT_MAX_HOMEPAGE_ROWS=16
 EXPERT_ENRICHMENT_MAX_TAVILY_ROWS=8
-EXPERT_ENRICHMENT_TAVILY_RESULTS=5
+EXPERT_ENRICHMENT_TAVILY_RESULTS=8
+TAVILY_CREDITS_PER_EXPERT=5
+TAVILY_MAX_CREDITS_PER_JOB=0
+TAVILY_FAILURE_CIRCUIT_THRESHOLD=3
+TAVILY_FAILURE_COOLDOWN_SECONDS=60
+TAVILY_QUERY_CACHE_SIZE=4096
 SURVIVAL_VERIFICATION_MAX_ROWS=25
 SURVIVAL_VERIFICATION_TAVILY_RESULTS=5
 DELIVERY_ENABLE_LLM_TRANSLATION=true
@@ -104,9 +109,18 @@ RESEARCHER_TOTAL_EVIDENCE_CHARS=22000
 RESEARCHER_CHUNK_SIZE=10
 RESEARCHER_TARGET_EXPERTS=20
 RESEARCHER_MAX_BATCH_ATTEMPTS=5
-SUBDOMAIN_SEARCH_ROUNDS=10
+TOTAL_TARGET_EXPERTS=150
+MAX_TOTAL_TARGET_EXPERTS=5000
 SUBDOMAIN_TIER_RECOVERY_ATTEMPTS=2
 SUBDOMAIN_FINAL_TOPUP_ATTEMPTS=3
+SUBDOMAIN_LLM_CIRCUIT_BREAKER_THRESHOLD=3
+TABLE_COMPLETION_LLM_BATCH_SIZE=10
+TABLE_COMPLETION_ENABLE_SEMANTIC_SCHOLAR=false
+TABLE_COMPLETION_PROCESS_CHUNK_SIZE=15
+TABLE_COMPLETION_PROCESS_CHUNK_RETRY_ATTEMPTS=2
+TABLE_COMPLETION_COMPACT_TARGETED_SEARCH=true
+TABLE_COMPLETION_TARGETED_SEARCH_RESULTS=8
+TABLE_COMPLETION_TARGETED_SEARCH_MAX_QUERIES_PER_ROW=1
 DOCUMENT_PROCESSOR_INPUT_CHARS=12000
 DOCUMENT_PROCESSOR_OUTPUT_CHARS=6000
 DOCUMENT_PROCESSOR_FAILURE_CACHE_SECONDS=300
@@ -123,7 +137,7 @@ Semantic Scholar 默认只作为按需补充，不作为主检索上下文。不
 
 ## 主要文件
 
-- `app.py`：Streamlit 稳定入口；负责领域输入、细分领域选择、批量运行、下载按钮、最终总表合并。
+- `app.py`：Streamlit 稳定入口；负责领域输入、细分领域选择、后台任务提交、持久化进度展示和最终结果下载。
 - `main.py`：兼容入口；转发既有的 `run_agent_task()` 和 `get_dynamic_recommendations()` 导入。
 - `expertsearch/main.py`：LangGraph 核心入口。
 - `expertsearch/state.py`：LangGraph 状态定义。关键字段为 `query -> research_data -> validation_feedback -> final_data -> excel_path`。
@@ -136,12 +150,26 @@ Semantic Scholar 默认只作为按需补充，不作为主检索上下文。不
 - `expertsearch/survival_verification.py`：独立生存状态核验层；通过网页证据识别讣告、逝世公告等明确死亡证据。
 - `expertsearch/chinese_output.py`：最终甲方交付表中文规范化、批量翻译与英文残留检查。
 - `expertsearch/opencli_homepage_client.py`：OpenCLI 真实浏览器主页访问回退层；限制公网 URL、调用次数和超时。
+- `expertsearch/table_completion.py`：独立的已有 Excel 信息补全分支；识别原表、复用外部工具，并运行补全研究员、验证员和纠错员后回填原工作簿。
+- `expertsearch/search_job_process.py`：启动独立后台检索进程，使浏览器刷新、断线和 Streamlit rerun 不会终止长任务。
+- `expertsearch/search_worker.py`：从持久化检查点执行各细分领域检索、补位、合并和最终 Excel 写出。
+- `expertsearch/search_checkpoint.py`：原子保存任务进度、批次路径、后台 PID、失败领域和最终结果路径。
 - `tests/`：自动化测试。
 - `docs/`：项目说明、流程图及文档资产。
 - `scripts/windows/`：OpenCLI 等 Windows 辅助命令。
 - `logs/`：当前和历史 Streamlit 日志。
 
 ## 数据流
+
+前端与长任务解耦：
+
+```text
+Streamlit 提交参数 -> 创建持久化检查点 -> 启动独立 search_worker 进程
+-> 前端每 5 秒读取检查点展示进度 -> worker 写出最终 Excel
+-> 页面刷新或浏览器断线后继续读取同一检查点和结果
+```
+
+同一检查点存在活动 worker PID 时不得重复启动；worker 异常退出后保留所有已完成批次，前端可仅续跑未完成细分领域。
 
 标准 LangGraph 生命周期：
 
@@ -162,6 +190,18 @@ query + supplemental_document_context
 
 成功时 `excel_path` 是绝对路径，失败时 `excel_path=None`。
 
+已有表格信息补全使用独立数据流，不修改主检索图：
+
+```text
+上传 Excel -> 表头/数据行识别 -> 外部工具证据补全
+-> 补全研究员 -> 补全验证员 -> 补全纠错员
+-> 只回填原表空白单元格 -> 输出补全后的 Excel
+```
+
+已有表格补全默认每轮固定处理 15 位专家，逐轮运行直到覆盖原表全部专家；
+每轮单独重试并校验证据行完整性。补全分支默认把 Tavily 压缩为每位专家一次
+综合定向检索，避免大表前半段耗尽搜索额度；这些设置不改变主检索图的工具策略。
+
 ## 检索与增强策略
 
 当前架构不是 LLM tool-calling。Python 先调用外部服务，再把证据文本喂给 LLM 整理。
@@ -169,11 +209,16 @@ query + supplemental_document_context
 默认职责：
 
 - 前端按每个细分领域维护独立的历史专家名单，后续轮次必须排除当前细分领域此前已发现的人选。
-- 每轮固定查询 15 位专家。每个细分领域默认执行 10 轮分层检索，用户可在前端将本次任务调整为 1–20 轮；不足时先进行轮内补位，全部轮次结束后再执行细分领域级补位。默认单个细分领域最多形成约 150 位候选。
+- 每轮固定查询 10 位专家。用户在前端输入本次任务的专家总人数，系统按已选细分领域数量尽量均匀分配人数，再用每个细分领域的目标人数除以 10 并向上取整计算轮次；最后从多检索的候选中按各分支目标人数保留高质量专家。不足时先进行轮内补位，全部轮次结束后再执行细分领域级补位。
 - 不同细分领域之间允许同一专家重复出现；最终合并时保留该专家的多个细分领域归属。
 
 - OpenAlex：主学术数据库，优先用于 H 指数、i10、总被引、主题、作品证据。
 - Tavily：网页搜索，补个人主页、邮箱、奖项、合作新闻。
+- Tavily 补全会把同一专家的主页、邮箱、教育、职位、荣誉和国内合作线索合并为一次综合检索，
+  并在任务进程内复用相同查询结果；生存状态仍使用独立网页核验。默认按每位目标专家 5 credits
+  设置任务级持久化额度预算，因此 200 位专家的常规路径预计约 440 次高级请求/880 credits，
+  任务上限为 1000 credits。Tavily 失败或额度耗尽只会
+  跳过对应网页补查，不得中断 OpenAlex、LLM、主页访问、后续细分领域或最终 Excel 输出。
 - Semantic Scholar：按需补充代表论文和交叉验证，不在最终 Excel 展示 S2 技术字段。
 - 个人主页爬取：如果成功访问主页，补 `邮箱/电话`、`研究兴趣`、`工作单位`、`职位`、`教育背景`、`主要成果`、`国内合作学者与单位`。
 - OpenCLI Browser Bridge：普通 HTTP 主页访问失败或正文不足时，限量使用真实浏览器渲染后重试；扩展未连接时自动跳过，不中断主流程。调用预算按每个专家批次重新计数，默认一个 20 人梯队最多回退 25 次。

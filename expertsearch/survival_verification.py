@@ -8,6 +8,7 @@ from urllib.parse import urlparse
 import pandas as pd
 from dotenv import load_dotenv
 from langchain_tavily import TavilySearch
+from .tavily_client import create_tavily_search, invoke_tavily_search, tavily_is_configured
 
 from .safe_logging import safe_print
 
@@ -159,19 +160,23 @@ def evaluate_survival_evidence(
 
 
 def _make_tavily() -> TavilySearch | None:
-    if not os.environ.get("TAVILY_API_KEY"):
+    if not tavily_is_configured():
         return None
-    return TavilySearch(
-        max_results=int(os.environ.get("SURVIVAL_VERIFICATION_TAVILY_RESULTS", "5")),
-        search_depth="advanced",
-        topic="general",
-        include_answer=False,
-        handle_tool_error=True,
-    )
+    try:
+        return create_tavily_search(
+            max_results=int(os.environ.get("SURVIVAL_VERIFICATION_TAVILY_RESULTS", "5")),
+            search_depth="advanced",
+            topic="general",
+            include_answer=False,
+            handle_tool_error=True,
+        )
+    except Exception as exc:
+        safe_print(f"[生存状态核验工具状态] Tavily 初始化失败，本轮跳过独立网页核验: {exc}")
+        return None
 
 
 def _search_items(tavily: TavilySearch, query: str) -> list[dict[str, str]]:
-    raw_result = tavily.invoke({"query": query})
+    raw_result = invoke_tavily_search(tavily, query, stage="生存状态核验")
     if not isinstance(raw_result, dict):
         return []
     return [

@@ -10,6 +10,7 @@ from .agents import document_processor_node, researcher_node, validator_node, co
 from .utils import excel_converter_node
 from .llm_safety import is_sensitive_word_error
 from .safe_logging import safe_print
+from .error_diagnostics import format_error_for_user
 
 # 加载环境变量 (需要有 GOOGLE_API_KEY)
 load_dotenv()
@@ -92,20 +93,7 @@ def run_agent_task(
         excel_path = require_state_value(final_state, "excel_path")
         return os.path.abspath(excel_path), None
     except Exception as e:
-        if is_sensitive_word_error(e):
-            error_message = (
-                "任务异常: 模型中转服务误判了正常学术术语并拒绝请求。"
-                "我已加入学术术语保护层；如果你刚修改过代码，请先重启 Streamlit 后再试。"
-                f" 原始错误: {e}"
-            )
-        elif is_connection_error(e):
-            error_message = (
-                "任务异常: 外部服务连接失败或超时。"
-                "常见来源包括 LLM/API 中转服务、Tavily 搜索服务、OpenAlex/Semantic Scholar 数据库或网络波动。"
-                f" 定位信息: {e}"
-            )
-        else:
-            error_message = f"任务异常: {e}"
+        error_message = "任务异常｜" + format_error_for_user(e)
         safe_print(error_message)
         return None, error_message
 

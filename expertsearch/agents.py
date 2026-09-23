@@ -11,11 +11,11 @@ import requests
 from langchain_core.messages import SystemMessage, HumanMessage
 from dotenv import load_dotenv
 from langchain_openai import ChatOpenAI
-from langchain_tavily import TavilySearch
 from .state import AgentState, require_state_value
 from .openalex_client import build_openalex_context
 from .semantic_scholar_client import build_semantic_scholar_context
 from .llm_safety import is_sensitive_word_error, sanitize_for_llm
+from .tavily_client import create_tavily_search, invoke_tavily_search
 from .safe_logging import safe_print
 from .source_registry import fetchable_source_records
 from .supplemental_documents import compact_supplemental_document_context
@@ -166,7 +166,7 @@ DOCUMENT_PROCESSOR_PROMPT = """角色：
 _DOCUMENT_COMPRESSION_FAILURE_CACHE: dict[tuple[str, str], float] = {}
 
 # 加载环境变量
-load_dotenv()
+load_dotenv(encoding="utf-8-sig")
 
 # 根据中转站特性，绝大部分中转站支持兼容 OpenAI 格式的接口
 api_key = os.environ.get("API_KEY", "")
@@ -177,16 +177,8 @@ llm = ChatOpenAI(
     temperature=0.1,
     api_key=api_key,
     base_url=api_base,
-    streaming=False
-)
-
-# 初始化搜索工具
-search_tool = TavilySearch(
-    max_results=int(os.environ.get("TAVILY_MAX_RESULTS", "4")),
-    search_depth="advanced",
-    topic="general",
-    include_answer=False,
-    handle_tool_error=True,
+    streaming=False,
+    max_retries=0,
 )
 
 def clip_text(text: Any, limit: int = 360) -> str:
@@ -413,6 +405,17 @@ def _is_connection_like_error(error: Exception) -> bool:
 
 
 def invoke_llm_with_stage(stage: str, messages: list):
+    if not api_key:
+        raise RuntimeError(
+            f"{stage}：LLM 配置缺失。请在项目 .env 中设置 API_KEY，并完整重启 Streamlit。"
+        )
+    if not api_base:
+        raise RuntimeError(
+            f"{stage}：LLM 配置缺失 API_BASE_URL。当前 API_KEY 会被发送到 OpenAI 官方接口，"
+            "但它可能是中转服务密钥。请把密钥所属平台提供的 OpenAI 兼容 API 地址写入项目 "
+            ".env 的 API_BASE_URL，然后完整重启 Streamlit。"
+        )
+
     max_attempts = int(os.environ.get("LLM_RETRY_ATTEMPTS", "3"))
     retry_delay = float(os.environ.get("LLM_RETRY_DELAY_SECONDS", "3"))
     last_error = None
@@ -421,6 +424,18 @@ def invoke_llm_with_stage(stage: str, messages: list):
             return llm.invoke(messages)
         except Exception as e:
             last_error = e
+            error_text = str(e).lower()
+            if (
+                "invalid_api_key" in error_text
+                or "incorrect api key" in error_text
+                or "authenticationerror" in error_text
+                or "status code: 401" in error_text
+                or "error code: 401" in error_text
+            ):
+                raise RuntimeError(
+                    f"{stage}：LLM 身份验证失败。请检查 .env 中的 API_KEY 是否有效，"
+                    "并确认 API_BASE_URL 与该密钥属于同一个服务平台；修改后请完整重启 Streamlit。"
+                ) from e
             if is_sensitive_word_error(e):
                 raise RuntimeError(f"{stage}：LLM 请求被中转服务敏感词规则拦截: {e}") from e
             if _is_connection_like_error(e) and attempt < max_attempts:
@@ -586,10 +601,25 @@ def tavily_search_context(query: str, include_chinese_experts: bool = False) -> 
     """
     context_blocks = []
     errors = []
+    try:
+        search_tool = create_tavily_search(
+            max_results=int(os.environ.get("TAVILY_MAX_RESULTS", "4")),
+            search_depth="advanced",
+            topic="general",
+            include_answer=False,
+            handle_tool_error=True,
+        )
+    except Exception as exc:
+        safe_print(f"[Tavily降级] 研究员候选检索不可用，本批继续使用其他证据源: {exc}")
+        return ""
 
     for search_query in build_search_queries(query, include_chinese_experts):
         try:
-            raw_result = search_tool.invoke({"query": search_query})
+            raw_result = invoke_tavily_search(
+                search_tool,
+                search_query,
+                stage="研究员候选检索",
+            )
             context_blocks.append(
                 f"### Tavily 查询\n{search_query}\n\n{format_tavily_results(raw_result)}"
             )
@@ -599,7 +629,11 @@ def tavily_search_context(query: str, include_chinese_experts: bool = False) -> 
     if context_blocks:
         return "\n\n".join(context_blocks)
 
-    raise RuntimeError("Tavily 检索全部失败，可能是搜索服务网络连接失败或请求超时: " + " | ".join(errors))
+    safe_print(
+        "[Tavily降级] 本批候选检索全部失败，系统继续使用 OpenAlex、"
+        "补充网页和上传文件证据: " + " | ".join(errors)
+    )
+    return ""
 
 
 def _html_to_plain_text(page_html: str) -> str:

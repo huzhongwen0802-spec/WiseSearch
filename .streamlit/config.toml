@@ -1,0 +1,4 @@
+[server]
+# Keep a running search alive when the browser sleeps or briefly disconnects.
+disconnectedSessionTTL = 86400
+websocketPingInterval = 30
